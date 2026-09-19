@@ -38,32 +38,32 @@ export function CrawlerHealthBadge() {
   return (
     <Link
       href="/crawler"
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+      className="inline-flex items-center gap-2 px-2.5 py-1.5 bg-[#121212] border border-[#262626] hover:border-[#4AF626] font-mono text-[11px] text-[#EAEAEA] transition-colors"
       title={`Trạng thái hệ thống: ${status.toUpperCase()} ${articleCount !== null ? `(${articleCount} bài)` : ""}`}
     >
       <span className="relative flex h-2 w-2">
         {status === "healthy" && (
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="animate-ping absolute inline-flex h-full w-full bg-[#4AF626] opacity-75"></span>
         )}
         <span
-          className={`relative inline-flex rounded-full h-2 w-2 ${
+          className={`relative inline-flex h-2 w-2 ${
             status === "healthy"
-              ? "bg-emerald-500"
+              ? "bg-[#4AF626]"
               : status === "degraded"
-              ? "bg-amber-500"
-              : "bg-rose-500"
+              ? "bg-[#F59E0B]"
+              : "bg-[#E61919]"
           }`}
         ></span>
       </span>
-      <span className="hidden sm:inline">
-        {status === "healthy" ? "Hệ thống Online" : status === "degraded" ? "Cảnh báo" : "Offline"}
+      <span className="hidden sm:inline font-mono tracking-wider">
+        {status === "healthy" ? "SYS // ONLINE" : status === "degraded" ? "SYS // WARN" : "SYS // OFFLINE"}
       </span>
       {articleCount !== null && (
-        <span className="hidden md:inline font-semibold text-neutral-500 dark:text-neutral-400">
-          • {articleCount} bài
+        <span className="font-mono text-[#8A8A8A] hidden md:inline">
+          [{articleCount.toString().padStart(2, "0")} ARTS]
         </span>
       )}
-      <Activity className="w-3 h-3 text-neutral-400" />
+      <Activity className="w-3 h-3 text-[#8A8A8A]" />
     </Link>
   );
 }

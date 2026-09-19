@@ -103,7 +103,14 @@ class ListingParser:
 
         full_url = urljoin(self.base_url, href)
 
-        # 2. Extract description (sapo)
+        # 2. Extract description (sapo) and comment count
+        comment_count = 0
+        cmt_tag = tag.select_one(".count_cmt span") or tag.select_one(".count_cmt")
+        if cmt_tag:
+            raw = cmt_tag.get_text(strip=True).replace(",", "").replace(".", "")
+            if raw.isdigit():
+                comment_count = int(raw)
+
         description = None
         desc_tag = tag.select_one("p.description")
         if desc_tag:
@@ -153,6 +160,7 @@ class ListingParser:
             thumbnail_url=thumbnail_url,
             published_at=published_at,
             category_slug=category_slug,
+            comment_count=comment_count,
         )
 
     def extract_pagination(self, html: str) -> List[str]:

@@ -17,6 +17,7 @@ class SearchResultItem(BaseModel):
     published_at: Optional[datetime] = None
     category: Optional[CategoryShort] = None
     score: float = Field(default=1.0, description="Độ liên quan của kết quả tìm kiếm")
+    comment_count: int = Field(default=0, description="Số lượt bình luận của bài viết")
     snippet: Optional[str] = Field(default=None, description="Đoạn văn bản chứa từ khóa tìm kiếm")
 
 

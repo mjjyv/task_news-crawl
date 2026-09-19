@@ -10,19 +10,45 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        crt: {
+          bg: "#0A0A0A",
+          surface: "#121212",
+          panel: "#171717",
+          border: "#262626",
+          phosphor: "#EAEAEA",
+          muted: "#8A8A8A",
+          hazard: "#E61919",
+          pulse: "#4AF626",
+        },
         brand: {
           50: "#fdf2f2",
           100: "#fde8e8",
           200: "#fbd5d5",
-          500: "#9f1239", // Maroon/Burgundy red like VnExpress
-          600: "#881337",
-          700: "#701a31",
-          800: "#4c0519",
+          500: "#e61919", // Aviation / Hazard Red
+          600: "#cc1414",
+          700: "#b30e0e",
+          800: "#800a0a",
         },
       },
       fontFamily: {
+        mono: [
+          "ui-monospace",
+          "SFMono-Regular",
+          "JetBrains Mono",
+          "IBM Plex Mono",
+          "Consolas",
+          "Courier Prime",
+          "monospace",
+        ],
         serif: ["Georgia", "Cambria", "Times New Roman", "serif"],
-        sans: ["system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+        sans: [
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "Roboto",
+          "sans-serif",
+        ],
       },
     },
   },

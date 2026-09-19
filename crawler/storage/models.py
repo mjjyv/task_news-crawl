@@ -51,6 +51,7 @@ class Article(Base):
         Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True
     )
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    comment_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     category: Mapped[Optional["Category"]] = relationship("Category", back_populates="articles")
@@ -60,6 +61,7 @@ class Article(Base):
 
     __table_args__ = (
         Index("idx_articles_category_published", "category_id", "published_at"),
+        Index("idx_articles_hot", "comment_count", "published_at"),
     )
 
     def __repr__(self) -> str:

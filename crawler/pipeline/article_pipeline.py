@@ -202,6 +202,7 @@ class ArticlePipeline:
                     "origin_url": parsed.origin_url,
                     "category_id": cat_id,
                     "published_at": parsed.published_at,
+                    "comment_count": parsed.comment_count,
                 }
                 media_dicts = [m.model_dump() for m in parsed.media]
                 repo.upsert_article(art_dict, media_dicts)
@@ -246,6 +247,7 @@ class ArticlePipeline:
                 "origin_url": parsed.origin_url,
                 "category_id": category_id,
                 "published_at": parsed.published_at,
+                "comment_count": parsed.comment_count,
             }
             media_items = [m.model_dump() for m in parsed.media]
 

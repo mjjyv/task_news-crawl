@@ -164,6 +164,7 @@ class SearchService:
                 published_at=art.published_at,
                 category=CategoryShort.model_validate(art.category) if art.category else None,
                 score=round(score, 2),
+                comment_count=art.comment_count,
                 snippet=snippet,
             )
             for score, art, snippet in paged_candidates

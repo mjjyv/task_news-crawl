@@ -131,3 +131,15 @@ def test_parse_gallery_and_video_article(parser):
     assert video.url == "https://video.vnecdn.net/clip1.mp4"
     assert video.caption == "Video ngập phố"
 
+
+def test_parse_content_news_detail_with_comments(parser):
+    with open("docs/content-news-detail.html", "r", encoding="utf-8") as f:
+        html = f.read()
+    url = "https://vnexpress.net/vinh-hung-tran-mua-ky-luc-trong-hon-40-nam-5122322.html"
+    parsed = parser.parse(html, url)
+    assert parsed is not None
+    assert parsed.id == 5122322
+    assert parsed.title == "Vinh hứng trận mưa kỷ lục trong hơn 40 năm"
+    assert parsed.comment_count == 3
+
+

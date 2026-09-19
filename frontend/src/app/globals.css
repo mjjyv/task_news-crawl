@@ -2,14 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  TACTICAL TELEMETRY & CRT TERMINAL DESIGN SYSTEM
+  - Strict 90-degree geometry: No border-radius
+  - CRT Substrate: #0A0A0A / #121212
+  - Phosphor White: #EAEAEA
+  - Hazard Red Accent: #E61919
+  - Terminal Green Pulse: #4AF626
+  - CRT Scanlines & ASCII Telemetry
+*/
+
 :root {
-  --foreground-rgb: 23, 23, 23;
-  --background-rgb: 250, 250, 250;
+  --foreground-rgb: 234, 234, 234;
+  --background-rgb: 10, 10, 10;
 }
 
 .dark {
-  --foreground-rgb: 245, 245, 245;
-  --background-rgb: 15, 15, 15;
+  --foreground-rgb: 234, 234, 234;
+  --background-rgb: 10, 10, 10;
+}
+
+/* Absolute rejection of border-radius across all elements */
+*,
+*::before,
+*::after {
+  border-radius: 0px !important;
 }
 
 body {
@@ -18,11 +35,40 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+/* CRT Scanlines simulation */
+body::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.2) 2px,
+    rgba(0, 0, 0, 0.2) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Tactical Telemetry Typography & Components */
+.font-telemetry {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", "IBM Plex Mono", Consolas, "Courier New", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 /* Reader Mode Article Styling */
 .article-reader-content {
   line-height: 1.8;
+  color: #d4d4d4;
 }
 
 .article-reader-content p {
@@ -32,58 +78,58 @@ body {
 .article-reader-content strong,
 .article-reader-content b {
   font-weight: 700;
+  color: #ffffff;
 }
 
 .article-reader-content figure {
-  margin: 2rem 0;
+  margin: 2.5rem 0;
   text-align: center;
+  border: 1px solid #262626;
+  padding: 0.5rem;
+  background-color: #121212;
 }
 
 .article-reader-content figure img,
 .article-reader-content img {
   max-width: 100%;
   height: auto;
-  border-radius: 0.75rem;
   margin: 0 auto;
   display: block;
 }
 
 .article-reader-content figcaption {
   margin-top: 0.75rem;
-  font-size: 0.875rem;
-  color: #737373;
-  font-style: italic;
+  font-size: 0.8125rem;
+  color: #8a8a8a;
+  font-family: ui-monospace, monospace;
   text-align: center;
   line-height: 1.5;
 }
 
-.dark .article-reader-content figcaption {
-  color: #a3a3a3;
-}
-
 .article-reader-content blockquote {
-  border-left: 4px solid #9f1239;
+  border-left: 3px solid #e61919;
   padding-left: 1.25rem;
-  margin: 1.75rem 0;
+  margin: 2rem 0;
   font-style: italic;
-  color: #525252;
-}
-
-.dark .article-reader-content blockquote {
-  border-left-color: #f43f5e;
-  color: #d4d4d4;
+  color: #e5e5e5;
+  background: #141414;
+  padding: 1rem 1.25rem;
 }
 
 .article-reader-content h2,
 .article-reader-content h3 {
-  font-weight: 700;
-  margin-top: 2rem;
+  font-weight: 800;
+  margin-top: 2.5rem;
   margin-bottom: 1rem;
   line-height: 1.3;
+  color: #ffffff;
+  letter-spacing: -0.02em;
 }
 
 .article-reader-content h2 {
   font-size: 1.5rem;
+  border-bottom: 1px solid #262626;
+  padding-bottom: 0.5rem;
 }
 
 .article-reader-content h3 {
@@ -92,13 +138,8 @@ body {
 
 /* Highlight search snippet matched text */
 mark {
-  background-color: rgba(253, 224, 71, 0.4);
-  color: inherit;
+  background-color: rgba(230, 25, 25, 0.35);
+  color: #ffffff;
   padding: 0.1rem 0.3rem;
-  border-radius: 0.25rem;
-}
-
-.dark mark {
-  background-color: rgba(234, 179, 8, 0.35);
-  color: #fef08a;
+  border: 1px solid rgba(230, 25, 25, 0.6);
 }

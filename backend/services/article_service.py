@@ -29,11 +29,13 @@ class ArticleService:
         category_slug: Optional[str] = None,
         from_date: Optional[datetime] = None,
         to_date: Optional[datetime] = None,
+        min_comments: Optional[int] = None,
         page: int = 1,
         page_size: int = 20,
         order: str = "desc",
+        sort: str = "latest",
     ) -> PaginatedResponse[ArticleSummary]:
-        """Fetch paginated articles with optional category and date range filters."""
+        """Fetch paginated articles with optional category, date range, and hotness filters."""
         page = max(1, page)
         page_size = min(max(1, page_size), 100)
 
@@ -67,12 +69,19 @@ class ArticleService:
             stmt = stmt.where(Article.published_at <= to_date)
             count_stmt = count_stmt.where(Article.published_at <= to_date)
 
-        # 3. Total count
+        # 3. Minimum comments filter (for finding hot articles)
+        if min_comments is not None and min_comments > 0:
+            stmt = stmt.where(Article.comment_count >= min_comments)
+            count_stmt = count_stmt.where(Article.comment_count >= min_comments)
+
+        # 4. Total count
         total = self.session.execute(count_stmt).scalar() or 0
         total_pages = math.ceil(total / page_size) if total > 0 else 0
 
-        # 4. Sorting & pagination
-        if order.lower() == "asc":
+        # 5. Sorting & pagination
+        if sort.lower() == "hot" or order.lower() == "hot":
+            stmt = stmt.order_by(Article.comment_count.desc(), Article.published_at.desc().nulls_last())
+        elif sort.lower() == "oldest" or order.lower() == "asc":
             stmt = stmt.order_by(Article.published_at.asc().nulls_last())
         else:
             stmt = stmt.order_by(Article.published_at.desc().nulls_last())
@@ -92,6 +101,7 @@ class ArticleService:
                 author=a.author,
                 origin_url=a.origin_url,
                 published_at=a.published_at,
+                comment_count=a.comment_count,
                 category=CategoryShort.model_validate(a.category) if a.category else None,
             )
             for a in articles
@@ -143,6 +153,7 @@ class ArticleService:
                     author=r.author,
                     origin_url=r.origin_url,
                     published_at=r.published_at,
+                    comment_count=r.comment_count,
                     category=CategoryShort.model_validate(r.category) if r.category else None,
                 )
                 for r in related_articles
@@ -161,6 +172,7 @@ class ArticleService:
             thumbnail_url=article.thumbnail_url,
             origin_url=article.origin_url,
             published_at=article.published_at,
+            comment_count=article.comment_count,
             created_at=article.created_at,
             category=CategoryShort.model_validate(article.category) if article.category else None,
             media=media_dtos,

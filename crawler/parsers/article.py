@@ -109,6 +109,9 @@ class ArticleParser:
         # 11. Main Thumbnail
         thumbnail_url = self._extract_main_thumbnail(soup, media_list)
 
+        # 12. Comment Count
+        comment_count = self._extract_comment_count(soup)
+
         return ParsedArticle(
             id=art_id,
             title=title,
@@ -121,6 +124,7 @@ class ArticleParser:
             origin_url=url,
             category_slug=category_slug,
             published_at=published_at,
+            comment_count=comment_count,
             media=media_list,
         )
 
@@ -357,3 +361,28 @@ class ArticleParser:
         clean_text = re.sub(r"\n{3,}", "\n\n", clean_text)
 
         return clean_html, clean_text
+
+    def _extract_comment_count(self, soup: BeautifulSoup) -> int:
+        """Extract number of comments from article detail HTML."""
+        # Check standard VnExpress comment counters
+        selectors = [
+            "span.number_cmt",
+            "span.num_cmt_detail",
+            "li.li_comment .number_cmt",
+            ".social_comment .number_cmt",
+            ".count_cmt span",
+        ]
+        for sel in selectors:
+            tag = soup.select_one(sel)
+            if tag:
+                raw = tag.get_text(strip=True).replace(",", "").replace(".", "")
+                if raw.isdigit():
+                    return int(raw)
+
+        # Fallback: search for elements with widget-comment-{id}-{idx} class
+        for span in soup.find_all("span", class_=lambda c: c and "widget-comment" in c):
+            raw = span.get_text(strip=True).replace(",", "").replace(".", "")
+            if raw.isdigit():
+                return int(raw)
+
+        return 0

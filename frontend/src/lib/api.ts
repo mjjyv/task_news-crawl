@@ -55,6 +55,8 @@ export async function getArticles(params?: {
   page?: number;
   page_size?: number;
   order?: "desc" | "asc";
+  sort?: "latest" | "hot" | "oldest";
+  min_comments?: number;
 }): Promise<PaginatedResponse<ArticleSummary>> {
   const query = new URLSearchParams();
   if (params?.category) query.set("category", params.category);
@@ -63,6 +65,10 @@ export async function getArticles(params?: {
   if (params?.page) query.set("page", params.page.toString());
   if (params?.page_size) query.set("page_size", params.page_size.toString());
   if (params?.order) query.set("order", params.order);
+  if (params?.sort) query.set("sort", params.sort);
+  if (params?.min_comments !== undefined && params?.min_comments !== null) {
+    query.set("min_comments", params.min_comments.toString());
+  }
 
   const qs = query.toString();
   return fetchJson<PaginatedResponse<ArticleSummary>>(

@@ -43,6 +43,7 @@ export interface ArticleSummary {
   origin_url: string;
   published_at?: string | null;
   category?: CategoryShort | null;
+  comment_count?: number;
 }
 
 export interface ArticleDetail {
@@ -58,6 +59,7 @@ export interface ArticleDetail {
   published_at?: string | null;
   created_at?: string | null;
   category?: CategoryShort | null;
+  comment_count?: number;
   media: MediaItem[];
   related_articles: ArticleSummary[];
 }
@@ -80,6 +82,7 @@ export interface SearchResultItem {
   published_at?: string | null;
   category?: CategoryShort | null;
   score: number;
+  comment_count?: number;
   snippet?: string | null;
 }
 

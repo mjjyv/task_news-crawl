@@ -58,6 +58,7 @@ def session():
         origin_url="https://vnexpress.net/2001.html",
         category_id=child_cat.id,
         published_at=now - timedelta(days=2),
+        comment_count=5,
     )
     art2 = Article(
         id=2002,
@@ -69,6 +70,7 @@ def session():
         origin_url="https://vnexpress.net/2002.html",
         category_id=child_cat.id,
         published_at=now - timedelta(days=1),
+        comment_count=80,
     )
     art3 = Article(
         id=2003,
@@ -80,6 +82,7 @@ def session():
         origin_url="https://vnexpress.net/2003.html",
         category_id=other_cat.id,
         published_at=now,
+        comment_count=20,
     )
     sess.add_all([art1, art2, art3])
     sess.flush()
@@ -169,3 +172,31 @@ def test_get_article_detail_not_found(client):
     response = client.get("/api/v1/articles/999999")
     assert response.status_code == 404
     assert "detail" in response.json()
+
+
+def test_list_articles_sort_hot(client):
+    # Hot sorting should return articles sorted by comment_count desc (80 -> 20 -> 5)
+    response = client.get("/api/v1/articles?sort=hot")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 3
+    assert data["items"][0]["id"] == 2002
+    assert data["items"][0]["comment_count"] == 80
+    assert data["items"][1]["id"] == 2003
+    assert data["items"][1]["comment_count"] == 20
+    assert data["items"][2]["id"] == 2001
+    assert data["items"][2]["comment_count"] == 5
+
+
+def test_list_articles_min_comments_filter(client):
+    # Filter min_comments=10 should return only articles with comment_count >= 10
+    response = client.get("/api/v1/articles?min_comments=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    for item in data["items"]:
+        assert item["comment_count"] >= 10
+    ids = [item["id"] for item in data["items"]]
+    assert 2002 in ids
+    assert 2003 in ids
+    assert 2001 not in ids

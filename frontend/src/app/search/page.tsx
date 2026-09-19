@@ -111,38 +111,38 @@ function SearchContent() {
       </div>
 
       {/* Search Box Card */}
-      <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-md">
+      <div className="p-4 sm:p-6 bg-[#121212] border border-[#262626]">
         <form onSubmit={handleSearchSubmit} className="space-y-4">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8A8A8A]" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Nhập từ khóa tìm kiếm (vd: trí tuệ nhân tạo, ngủ, hà nội, bão số 3...)"
-                className="w-full pl-11 pr-4 py-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm sm:text-base"
+                className="w-full pl-10 pr-4 py-2.5 bg-[#0A0A0A] border border-[#333] text-[#EAEAEA] placeholder-[#555] focus:outline-none focus:border-[#E61919] font-mono text-xs sm:text-sm"
                 autoFocus
               />
             </div>
             <button
               type="submit"
               disabled={loading || !query.trim()}
-              className="px-5 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-semibold text-sm transition-colors flex items-center gap-2 shrink-0 shadow-sm"
+              className="px-5 py-2.5 bg-[#E61919] hover:bg-[#cc1414] disabled:opacity-50 text-white font-mono font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-2 shrink-0 border border-[#E61919]"
             >
               {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <Search className="w-4 h-4" />
+                <Search className="w-3.5 h-3.5" />
               )}
-              <span>Tìm kiếm</span>
+              <span>[ TÌM KIẾM ]</span>
             </button>
           </div>
 
           {/* Filters Row */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 font-mono text-xs">
             {/* Exact Accent Toggle */}
-            <label className="inline-flex items-center gap-2 cursor-pointer text-neutral-700 dark:text-neutral-300 select-none">
+            <label className="inline-flex items-center gap-2 cursor-pointer text-[#8A8A8A] hover:text-[#EAEAEA] select-none">
               <input
                 type="checkbox"
                 checked={exactAccent}
@@ -150,24 +150,24 @@ function SearchContent() {
                 className="sr-only"
               />
               {exactAccent ? (
-                <CheckSquare className="w-4 h-4 text-brand-600 dark:text-brand-400 shrink-0" />
+                <CheckSquare className="w-4 h-4 text-[#E61919] shrink-0" />
               ) : (
-                <Square className="w-4 h-4 text-neutral-400 shrink-0" />
+                <Square className="w-4 h-4 text-[#555] shrink-0" />
               )}
               <span>
-                <strong>Chỉ tìm kiếm có dấu chính xác</strong> (exact_accent=true)
+                <strong>Chỉ tìm kiếm có dấu chính xác</strong> [exact_accent=true]
               </span>
             </label>
 
             {/* Category Dropdown Filter */}
             <div className="flex items-center gap-2">
-              <Filter className="w-3.5 h-3.5 text-neutral-400" />
+              <Filter className="w-3 h-3 text-[#8A8A8A]" />
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="py-1.5 px-3 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs focus:outline-none"
+                className="py-1.5 px-3 bg-[#1A1A1A] border border-[#333] text-[#EAEAEA] text-xs font-mono focus:outline-none focus:border-[#E61919]"
               >
-                <option value="">Tất cả chuyên mục</option>
+                <option value="">-- TẤT CẢ CHUYÊN MỤC --</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.slug}>
                     {c.name}
@@ -181,48 +181,50 @@ function SearchContent() {
 
       {/* Results Header */}
       {searched && (
-        <div className="flex items-center justify-between text-xs text-neutral-500 px-2">
+        <div className="flex items-center justify-between font-mono text-[10px] text-[#8A8A8A] px-1 border-b border-[#262626] pb-2">
           <span>
-            Tìm thấy <strong className="text-neutral-900 dark:text-neutral-100">{total}</strong> bài viết phù hợp
+            KẾT QUẢ: TÌM THẤY <strong className="text-[#EAEAEA]">{total}</strong> BÀI VIẾT
             {exactAccent && (
-              <span className="ml-1.5 px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-medium">
-                Khớp có dấu
+              <span className="ml-2 px-1.5 py-0.5 bg-[#E61919]/20 border border-[#E61919] text-[#E61919] font-bold">
+                KHỚP CÓ DẤU
               </span>
             )}
           </span>
-          <span>Trang {initialPage} / {totalPages || 1}</span>
+          <span>TRANG {initialPage} / {totalPages || 1}</span>
         </div>
       )}
 
       {/* Results List */}
       <div className="space-y-4">
         {loading ? (
-          <div className="p-12 text-center">
-            <Loader2 className="w-8 h-8 mx-auto animate-spin text-brand-600 mb-2" />
-            <p className="text-sm text-neutral-400">Đang tìm kiếm dữ liệu...</p>
+          <div className="p-12 text-center font-mono">
+            <Loader2 className="w-6 h-6 mx-auto animate-spin text-[#E61919] mb-2" />
+            <p className="text-xs text-[#8A8A8A] uppercase">[ QUERYING DATABASE MATRIX... ]</p>
           </div>
         ) : searched && results.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-400">
-            <FileQuestion className="w-10 h-10 mx-auto mb-3 text-neutral-300 dark:text-neutral-700" />
-            <h3 className="text-base font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-              Không tìm thấy kết quả phù hợp
+          <div className="p-12 text-center bg-[#121212] border border-[#262626] text-[#8A8A8A] font-mono">
+            <FileQuestion className="w-8 h-8 mx-auto mb-2 text-[#555]" />
+            <h3 className="text-xs font-bold text-[#EAEAEA] mb-1 uppercase tracking-wider">
+              [ KHÔNG TÌM THẤY KẾT QUẢ PHÙ HỢP ]
             </h3>
-            <p className="text-xs max-w-md mx-auto">
-              Không có bài viết nào chứa từ khóa &quot;{query}&quot;. Bạn có thể thử tìm từ khóa khác hoặc tắt tùy chọn &quot;Chỉ tìm kiếm có dấu chính xác&quot;.
+            <p className="text-[11px] max-w-md mx-auto text-[#666]">
+              Không có bài viết nào chứa từ khóa &quot;{query}&quot;. Thử tìm từ khóa khác hoặc tắt tùy chọn &quot;Chỉ tìm kiếm có dấu chính xác&quot;.
             </p>
           </div>
         ) : (
           results.map((item) => {
             const timeFormatted = formatDateVi(item.published_at);
+            const cCount = item.comment_count ?? 0;
+            const isHot = cCount >= 10;
             return (
               <article
                 key={item.id}
-                className="p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 hover:shadow-md transition-all flex flex-col sm:flex-row gap-4 group"
+                className="p-4 bg-[#121212] border border-[#262626] hover:border-[#E61919] transition-all flex flex-col sm:flex-row gap-4 group"
               >
                 {item.thumbnail_url && (
                   <Link
                     href={`/article/${item.id}`}
-                    className="sm:w-44 h-32 shrink-0 rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-800 relative block"
+                    className="sm:w-44 h-32 shrink-0 bg-[#1A1A1A] border border-[#262626] overflow-hidden relative block"
                   >
                     <img
                       src={item.thumbnail_url}
@@ -235,48 +237,61 @@ function SearchContent() {
 
                 <div className="flex-1 flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5 font-mono text-[10px]">
                       {item.category && (
-                        <span className="text-xs font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">
-                          {item.category.name}
+                        <span className="font-bold uppercase tracking-wider text-[#8A8A8A] border border-[#262626] px-1.5 py-0.5 bg-[#0A0A0A]">
+                          [ {item.category.name} ]
                         </span>
                       )}
+
+                      {/* Comment Count Telemetry Badge */}
+                      {isHot ? (
+                        <span className="px-1.5 py-0.5 bg-[#E61919] text-white font-bold tracking-wider border border-[#E61919]">
+                          🔥 HOT // {cCount} CMT
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 bg-[#1A1A1A] text-[#8A8A8A] border border-[#333]">
+                          CMT // {String(cCount).padStart(3, "0")}
+                        </span>
+                      )}
+
+                      <span className="text-[#555] ml-auto">ID #{item.id}</span>
                     </div>
 
                     <Link href={`/article/${item.id}`}>
-                      <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors line-clamp-2">
+                      <h3 className="text-base font-bold text-[#EAEAEA] group-hover:text-[#E61919] transition-colors line-clamp-2 font-sans">
                         {item.title}
                       </h3>
                     </Link>
 
                     {item.snippet ? (
                       <p
-                        className="mt-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 line-clamp-2 leading-relaxed"
+                        className="mt-2 text-xs text-[#8A8A8A] line-clamp-2 leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: item.snippet }}
                       />
                     ) : item.description ? (
-                      <p className="mt-2 text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 line-clamp-2 leading-relaxed">
+                      <p className="mt-2 text-xs text-[#8A8A8A] line-clamp-2 leading-relaxed">
                         {item.description}
                       </p>
                     ) : null}
                   </div>
 
-                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-800/60 text-xs text-neutral-400">
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#1F1F1F] font-mono text-[10px] text-[#8A8A8A]">
                     <div className="flex items-center gap-3">
                       {timeFormatted && (
                         <span className="inline-flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
+                          <Clock className="w-3 h-3 text-[#666]" />
                           {timeFormatted}
                         </span>
                       )}
-                      {item.author && <span>{item.author}</span>}
+                      {item.author && <span>// {item.author}</span>}
                     </div>
 
                     <Link
                       href={`/article/${item.id}`}
-                      className="inline-flex items-center gap-1 font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                      className="inline-flex items-center gap-1 font-bold text-[#E61919] hover:underline"
                     >
-                      Đọc tiếp
+                      <span>[ ĐỌC BÀI VIẾT ]</span>
                       <ArrowRight className="w-3 h-3" />
                     </Link>
                   </div>

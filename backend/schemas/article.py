@@ -35,6 +35,7 @@ class ArticleSummary(BaseModel):
     author: Optional[str] = None
     origin_url: str
     published_at: Optional[datetime] = None
+    comment_count: int = 0
     category: Optional[CategoryShort] = None
 
 
@@ -51,6 +52,7 @@ class ArticleDetail(BaseModel):
     thumbnail_url: Optional[str] = None
     origin_url: str
     published_at: Optional[datetime] = None
+    comment_count: int = 0
     created_at: Optional[datetime] = None
     category: Optional[CategoryShort] = None
     media: List[MediaResponse] = Field(default_factory=list)

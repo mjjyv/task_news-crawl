@@ -24,6 +24,7 @@ class ParsedListingItem(BaseModel):
     thumbnail_url: Optional[str] = None
     published_at: Optional[datetime] = None
     category_slug: Optional[str] = None
+    comment_count: int = 0
 
 
 class ParsedMedia(BaseModel):
@@ -46,6 +47,7 @@ class ParsedArticle(BaseModel):
     origin_url: str
     category_slug: Optional[str] = None
     published_at: Optional[datetime] = None
+    comment_count: int = 0
     media: List[ParsedMedia] = Field(default_factory=list)
 
 

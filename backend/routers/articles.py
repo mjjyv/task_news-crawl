@@ -32,9 +32,18 @@ def list_articles(
     ),
     page: int = Query(1, ge=1, description="Số trang hiện tại (bắt đầu từ 1)"),
     page_size: int = Query(20, ge=1, le=100, description="Số lượng bài viết trên mỗi trang (1-100)"),
-    order: Literal["desc", "asc"] = Query(
+    order: Literal["desc", "asc", "hot"] = Query(
         "desc",
-        description="Thứ tự sắp xếp theo thời gian xuất bản: 'desc' (mới nhất) hoặc 'asc' (cũ nhất)",
+        description="Thứ tự sắp xếp: 'desc' (mới nhất), 'asc' (cũ nhất), hoặc 'hot' (nhiều bình luận nhất)",
+    ),
+    sort: Literal["latest", "hot", "oldest"] = Query(
+        "latest",
+        description="Chế độ sắp xếp: 'latest' (mới nhất), 'hot' (nhiều bình luận nhất), 'oldest' (cũ nhất)",
+    ),
+    min_comments: Optional[int] = Query(
+        None,
+        ge=0,
+        description="Lọc bài viết có số lượt bình luận tối thiểu (phục vụ lọc bài báo hot)",
     ),
     service: ArticleService = Depends(get_article_service),
 ) -> PaginatedResponse[ArticleSummary]:
@@ -44,15 +53,18 @@ def list_articles(
     Hỗ trợ lọc theo:
     - **category**: Slug danh mục (tự động đệ quy bao gồm bài viết của các danh mục con).
     - **from_date** / **to_date**: Khoảng thời gian xuất bản.
-    - **order**: Sắp xếp tăng/giảm dần theo ngày xuất bản.
+    - **sort** / **order**: Sắp xếp: 'latest' (mới nhất), 'hot' (nhiều bình luận nhất), 'oldest' (cũ nhất).
+    - **min_comments**: Lọc bài viết có tối thiểu N lượt bình luận (bài hot).
     """
     return service.get_articles(
         category_slug=category,
         from_date=from_date,
         to_date=to_date,
+        min_comments=min_comments,
         page=page,
         page_size=page_size,
         order=order,
+        sort=sort,
     )
 
 

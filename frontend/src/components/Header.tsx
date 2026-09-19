@@ -39,7 +39,7 @@ export function Header({ categories = [] }: HeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-neutral-200 dark:border-neutral-800 transition-colors">
+      <header className="sticky top-0 z-40 w-full bg-[#0A0A0A]/95 backdrop-blur border-b border-[#262626] text-[#EAEAEA] transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Left: Mobile Nav + Logo */}
@@ -47,15 +47,15 @@ export function Header({ categories = [] }: HeaderProps) {
               <MobileNav categories={categories} onOpenSearch={() => setSearchOpen(true)} />
 
               <Link href="/" className="flex items-center gap-2.5 group">
-                <span className="w-8 h-8 rounded-xl bg-brand-600 text-white font-black flex items-center justify-center text-base shadow group-hover:bg-brand-700 transition-colors">
-                  V
+                <span className="px-2.5 py-1 bg-[#E61919] text-white font-mono font-black text-xs tracking-widest border border-[#E61919] shadow-[0_0_10px_rgba(230,25,25,0.4)]">
+                  VNE
                 </span>
                 <div className="flex flex-col">
-                  <span className="font-extrabold text-base sm:text-lg tracking-tight text-neutral-900 dark:text-white leading-none">
-                    VnExpress<span className="text-brand-600 dark:text-brand-400">Reader</span>
+                  <span className="font-mono font-black text-sm sm:text-base tracking-wider text-[#EAEAEA] leading-none uppercase">
+                    VnExpress<span className="text-[#E61919]"> // TELEMETRY</span>
                   </span>
-                  <span className="text-[10px] text-neutral-400 font-medium tracking-wide">
-                    Tối giản • Không quảng cáo
+                  <span className="font-mono text-[9px] text-[#8A8A8A] tracking-widest uppercase mt-0.5">
+                    TACTICAL WIRE • DECLASSIFIED
                   </span>
                 </div>
               </Link>
@@ -72,12 +72,12 @@ export function Header({ categories = [] }: HeaderProps) {
               <button
                 onClick={() => setSearchOpen(true)}
                 type="button"
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-medium transition-colors border border-neutral-200/50 dark:border-neutral-700/50"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#141414] text-[#8A8A8A] hover:text-[#EAEAEA] hover:border-[#E61919] text-xs font-mono tracking-wider transition-colors border border-[#262626]"
                 title="Tìm kiếm nhanh (Ctrl + K)"
               >
-                <Search className="w-3.5 h-3.5 text-neutral-400" />
-                <span className="hidden md:inline">Tìm kiếm...</span>
-                <kbd className="hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-400">
+                <Search className="w-3.5 h-3.5 text-[#8A8A8A]" />
+                <span className="hidden md:inline">[ SEARCH // CTRL+K ]</span>
+                <kbd className="hidden lg:inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-mono bg-[#0A0A0A] border border-[#333] text-[#8A8A8A]">
                   <Command className="w-2.5 h-2.5" />K
                 </kbd>
               </button>
@@ -86,17 +86,14 @@ export function Header({ categories = [] }: HeaderProps) {
               <button
                 onClick={() => setSearchOpen(true)}
                 type="button"
-                className="sm:hidden p-2 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg"
+                className="sm:hidden p-2 text-[#8A8A8A] hover:text-[#EAEAEA] hover:bg-[#141414] border border-[#262626]"
                 aria-label="Tìm kiếm"
               >
-                <Search className="w-5 h-5" />
+                <Search className="w-4 h-4" />
               </button>
 
               {/* Crawler Health Pulse */}
               <CrawlerHealthBadge />
-
-              {/* Dark/Light mode toggle */}
-              <ThemeToggle />
             </div>
           </div>
         </div>
