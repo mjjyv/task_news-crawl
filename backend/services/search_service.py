@@ -42,10 +42,16 @@ class SearchService:
         self,
         query: str,
         category_slug: Optional[str] = None,
+        exact_accent: bool = False,
         page: int = 1,
         page_size: int = 20,
     ) -> SearchResponse:
-        """Search articles across title and content with accent-insensitivity."""
+        """
+        Search articles across title and content.
+
+        - exact_accent=False (default): Accent-insensitive search (e.g. 'tri tue' matches 'trí tuệ').
+        - exact_accent=True: Strict accent matching only (e.g. 'ngủ' matches only 'ngủ', not 'ngũ' or 'ngu').
+        """
         page = max(1, page)
         page_size = min(max(1, page_size), 100)
         clean_query = query.strip()
@@ -53,6 +59,7 @@ class SearchService:
         if not clean_query:
             return SearchResponse(
                 query=query,
+                exact_accent=exact_accent,
                 total=0,
                 page=page,
                 page_size=page_size,
@@ -78,6 +85,7 @@ class SearchService:
             else:
                 return SearchResponse(
                     query=query,
+                    exact_accent=exact_accent,
                     total=0,
                     page=page,
                     page_size=page_size,
@@ -85,38 +93,52 @@ class SearchService:
                     items=[],
                 )
 
-        # 2. Filter candidates matching keywords
-        filters = [
-            Article.title.ilike(f"%{clean_query}%"),
-            Article.description.ilike(f"%{clean_query}%"),
-            Article.content_text.ilike(f"%{clean_query}%"),
-            Article.slug.ilike(f"%{'-'.join(keywords)}%"),
-        ]
-
-        dialect_name = self.session.bind.dialect.name if self.session.bind else "sqlite"
-        if dialect_name == "sqlite":
-            filters.append(func.remove_accents(Article.title).ilike(f"%{norm_query}%"))
-            filters.append(func.remove_accents(Article.description).ilike(f"%{norm_query}%"))
-            filters.append(func.remove_accents(Article.content_text).ilike(f"%{norm_query}%"))
-            for kw in keywords:
-                filters.append(func.remove_accents(Article.title).ilike(f"%{kw}%"))
-                filters.append(func.remove_accents(Article.description).ilike(f"%{kw}%"))
-                filters.append(func.remove_accents(Article.content_text).ilike(f"%{kw}%"))
+        # 2. Filter candidates in database
+        if exact_accent:
+            # Exact accent mode: match directly against accented text columns
+            filters = [
+                Article.title.ilike(f"%{clean_query}%"),
+                Article.description.ilike(f"%{clean_query}%"),
+                Article.content_text.ilike(f"%{clean_query}%"),
+            ]
+            for rw in clean_query.split():
+                if len(rw) > 1:
+                    filters.append(Article.title.ilike(f"%{rw}%"))
+                    filters.append(Article.description.ilike(f"%{rw}%"))
+                    filters.append(Article.content_text.ilike(f"%{rw}%"))
         else:
-            for kw in keywords:
-                filters.append(Article.title.ilike(f"%{kw}%"))
-                filters.append(Article.description.ilike(f"%{kw}%"))
-                filters.append(Article.content_text.ilike(f"%{kw}%"))
-                filters.append(Article.slug.ilike(f"%{kw}%"))
+            # Accent-insensitive mode
+            filters = [
+                Article.title.ilike(f"%{clean_query}%"),
+                Article.description.ilike(f"%{clean_query}%"),
+                Article.content_text.ilike(f"%{clean_query}%"),
+                Article.slug.ilike(f"%{'-'.join(keywords)}%"),
+            ]
+
+            dialect_name = self.session.bind.dialect.name if self.session.bind else "sqlite"
+            if dialect_name == "sqlite":
+                filters.append(func.remove_accents(Article.title).ilike(f"%{norm_query}%"))
+                filters.append(func.remove_accents(Article.description).ilike(f"%{norm_query}%"))
+                filters.append(func.remove_accents(Article.content_text).ilike(f"%{norm_query}%"))
+                for kw in keywords:
+                    filters.append(func.remove_accents(Article.title).ilike(f"%{kw}%"))
+                    filters.append(func.remove_accents(Article.description).ilike(f"%{kw}%"))
+                    filters.append(func.remove_accents(Article.content_text).ilike(f"%{kw}%"))
+            else:
+                for kw in keywords:
+                    filters.append(Article.title.ilike(f"%{kw}%"))
+                    filters.append(Article.description.ilike(f"%{kw}%"))
+                    filters.append(Article.content_text.ilike(f"%{kw}%"))
+                    filters.append(Article.slug.ilike(f"%{kw}%"))
 
         stmt = stmt.where(or_(*filters))
 
         candidates = self.session.execute(stmt).scalars().all()
 
-        # 3. Score and rank candidates in Python (combines accented & unaccented relevance)
+        # 3. Score and rank candidates in Python
         scored_results: List[Tuple[float, Article, str]] = []
         for art in candidates:
-            score, snippet = self._score_article(art, clean_query, norm_query, keywords)
+            score, snippet = self._score_article(art, clean_query, norm_query, keywords, exact_accent=exact_accent)
             if score > 0:
                 scored_results.append((score, art, snippet))
 
@@ -149,6 +171,7 @@ class SearchService:
 
         return SearchResponse(
             query=query,
+            exact_accent=exact_accent,
             total=total,
             page=page,
             page_size=page_size,
@@ -162,28 +185,39 @@ class SearchService:
         raw_query: str,
         norm_query: str,
         keywords: List[str],
+        exact_accent: bool = False,
     ) -> Tuple[float, str]:
         score = 0.0
 
         title_raw = art.title.lower()
-        title_norm = remove_vietnamese_accents(art.title)
         desc_raw = (art.description or "").lower()
-        desc_norm = remove_vietnamese_accents(art.description or "")
         content_raw = (art.content_text or "").lower()
+
+        title_norm = remove_vietnamese_accents(art.title)
+        desc_norm = remove_vietnamese_accents(art.description or "")
         content_norm = remove_vietnamese_accents(art.content_text or "")
 
         raw_words = [re.sub(r"^[^\w]+|[^\w]+$", "", w).lower() for w in raw_query.split() if w]
         raw_words = [w for w in raw_words if w]
         norm_words = [remove_vietnamese_accents(w) for w in raw_words]
-        valid_kws = [k for k in norm_words if len(k) > 1]
+
+        if exact_accent:
+            target_words = raw_words
+            t_text, d_text, c_text = title_raw, desc_raw, content_raw
+        else:
+            target_words = norm_words
+            t_text, d_text, c_text = title_norm, desc_norm, content_norm
+
+        valid_kws = [k for k in target_words if len(k) > 1]
         if not valid_kws:
-            valid_kws = norm_words
+            valid_kws = target_words
         n_kws = len(valid_kws)
 
-        # 1. Exact full query phrase match
-        phrase_in_title = raw_query.lower() in title_raw or norm_query in title_norm
-        phrase_in_desc = raw_query.lower() in desc_raw or norm_query in desc_norm
-        phrase_in_content = raw_query.lower() in content_raw or norm_query in content_norm
+        # 1. Exact phrase match with WORD BOUNDARY (prevents substring issues like 'ngu' in 'nguoi')
+        phrase_pattern = re.compile(r"\b" + r"\s+".join(re.escape(w) for w in target_words) + r"\b", re.IGNORECASE)
+        phrase_in_title = bool(phrase_pattern.search(t_text))
+        phrase_in_desc = bool(phrase_pattern.search(d_text))
+        phrase_in_content = bool(phrase_pattern.search(c_text))
         has_phrase_match = phrase_in_title or phrase_in_desc or phrase_in_content
 
         if phrase_in_title:
@@ -193,35 +227,32 @@ class SearchService:
         if phrase_in_content:
             score += 20.0
 
-        # 2. Word-boundary keyword matches with accent awareness
+        # 2. Individual keyword matching with word boundaries
         matched_words = set()
-        for rw, nw in zip(raw_words, norm_words):
-            if len(nw) <= 1:
+        for w in target_words:
+            if len(w) <= 1:
                 continue
-            use_accent = has_vietnamese_accents(rw)
-            pat_raw = re.compile(r"\b" + re.escape(rw) + r"\b", re.IGNORECASE)
-            pat_norm = re.compile(r"\b" + re.escape(nw) + r"\b", re.IGNORECASE)
-
-            t_cnt = len(pat_raw.findall(title_raw)) if use_accent else len(pat_norm.findall(title_norm))
-            d_cnt = len(pat_raw.findall(desc_raw)) if use_accent else len(pat_norm.findall(desc_norm))
-            c_cnt = len(pat_raw.findall(content_raw)) if use_accent else len(pat_norm.findall(content_norm))
+            pat = re.compile(r"\b" + re.escape(w) + r"\b", re.IGNORECASE)
+            t_cnt = len(pat.findall(t_text))
+            d_cnt = len(pat.findall(d_text))
+            c_cnt = len(pat.findall(c_text))
 
             if t_cnt > 0:
                 score += min(t_cnt * 10.0, 20.0)
-                matched_words.add(nw)
+                matched_words.add(w)
             if d_cnt > 0:
                 score += min(d_cnt * 5.0, 10.0)
-                matched_words.add(nw)
+                matched_words.add(w)
             if c_cnt > 0:
                 score += min(c_cnt * 1.0, 10.0)
-                matched_words.add(nw)
+                matched_words.add(w)
 
         # 3. Qualification filter:
         if n_kws == 1:
             if len(matched_words) < 1 and not has_phrase_match:
                 return 0.0, ""
         elif n_kws == 2:
-            # Multi-word (2 words): both words must match OR exact phrase match
+            # Multi-word: both words must match OR exact phrase match
             if not has_phrase_match and len(matched_words) < 2:
                 return 0.0, ""
         else:
@@ -232,21 +263,22 @@ class SearchService:
         if score <= 0.0:
             return 0.0, ""
 
-        snippet = self._generate_snippet(art, valid_kws, norm_query)
+        snippet = self._generate_snippet(art, valid_kws, raw_query if exact_accent else norm_query, exact_accent=exact_accent)
         return score, snippet
 
-    def _generate_snippet(self, art: Article, keywords: List[str], norm_query: str, max_len: int = 160) -> str:
+    def _generate_snippet(self, art: Article, keywords: List[str], target_query: str, exact_accent: bool = False, max_len: int = 160) -> str:
         # Build clean single-spaced text from title, description and content
         full_text = f"{art.title}. {art.description or ''} {art.content_text or ''}"
         clean_text = re.sub(r"\s+", " ", full_text).strip()
-        norm_clean = remove_vietnamese_accents(clean_text)
+        search_text = clean_text if exact_accent else remove_vietnamese_accents(clean_text)
+        query_needle = target_query.strip() if exact_accent else remove_vietnamese_accents(target_query.strip())
 
-        best_pos = norm_clean.find(norm_query)
+        best_pos = search_text.lower().find(query_needle.lower())
         if best_pos == -1:
             for kw in keywords:
-                match = re.search(r"\b" + re.escape(kw) + r"\b", norm_clean)
-                if match:
-                    best_pos = match.start()
+                m = re.search(r"\b" + re.escape(kw) + r"\b", search_text, re.IGNORECASE)
+                if m:
+                    best_pos = m.start()
                     break
 
         if best_pos == -1:

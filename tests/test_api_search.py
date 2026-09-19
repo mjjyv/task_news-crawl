@@ -72,7 +72,29 @@ def session():
         category_id=cat2.id,
         published_at=datetime.now(timezone.utc),
     )
-    sess.add_all([art1, art2, art3, art4])
+    art5 = Article(
+        id=3005,
+        title="Thiết bị theo dõi giấc ngủ thông minh",
+        slug="thiet-bi-theo-doi-giac-ngu-thong-minh-3005",
+        description="Công nghệ theo dõi nhịp thở và chất lượng giấc ngủ ban đêm.",
+        content_html="<p>Thiết bị đeo tay giúp đo chu kỳ ngủ sâu và thức giấc.</p>",
+        content_text="Thiết bị đeo tay giúp đo chu kỳ ngủ sâu và thức giấc.",
+        origin_url="https://vnexpress.net/3005.html",
+        category_id=cat1.id,
+        published_at=datetime.now(timezone.utc),
+    )
+    art6 = Article(
+        id=3006,
+        title="Đội ngũ kỹ sư phần mềm xuất sắc",
+        slug="doi-ngu-ky-su-phan-mem-xuat-sac-3006",
+        description="Xây dựng đội ngũ nhân sự chất lượng cao cho doanh nghiệp.",
+        content_html="<p>Phát triển năng lực cho đội ngũ kỹ sư công nghệ.</p>",
+        content_text="Phát triển năng lực cho đội ngũ kỹ sư công nghệ.",
+        origin_url="https://vnexpress.net/3006.html",
+        category_id=cat1.id,
+        published_at=datetime.now(timezone.utc),
+    )
+    sess.add_all([art1, art2, art3, art4, art5, art6])
     sess.commit()
 
     yield sess
@@ -164,3 +186,28 @@ def test_search_ha_noi_precision(client):
     assert data["total"] == 1
     assert data["items"][0]["id"] == 3004
     assert "hà nội" in data["items"][0]["snippet"].lower()
+
+
+def test_search_exact_accent_mode(client):
+    # In exact accent mode (exact_accent=true), searching "ngủ" must match ONLY article 3005 ("giấc ngủ")
+    # and MUST NOT match article 3006 ("đội ngũ") or other articles
+    response = client.get("/api/v1/search", params={"q": "ngủ", "exact_accent": "true"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["exact_accent"] is True
+    assert data["total"] == 1
+    assert data["items"][0]["id"] == 3005
+    assert "ngủ" in data["items"][0]["snippet"].lower()
+
+
+def test_search_unaccented_mode_word_boundary(client):
+    # In unaccented mode (exact_accent=false), searching "ngu" matches:
+    # 3001 ("ngôn ngữ" -> "ngu"), 3005 ("giấc ngủ" -> "ngu"), 3006 ("đội ngũ" -> "ngu")
+    # and MUST NOT match 3002, 3003, 3004 containing "người"
+    response = client.get("/api/v1/search", params={"q": "ngu", "exact_accent": "false"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["exact_accent"] is False
+    assert data["total"] == 3
+    matched_ids = {item["id"] for item in data["items"]}
+    assert matched_ids == {3001, 3005, 3006}

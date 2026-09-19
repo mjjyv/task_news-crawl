@@ -22,6 +22,7 @@ class SearchResultItem(BaseModel):
 
 class SearchResponse(BaseModel):
     query: str
+    exact_accent: bool = Field(default=False, description="Chế độ tìm kiếm: true (chỉ tìm chính xác có dấu), false (không phân biệt dấu/mở rộng)")
     total: int
     page: int
     page_size: int
