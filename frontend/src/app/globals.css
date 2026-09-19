@@ -38,26 +38,6 @@ body {
   position: relative;
 }
 
-/* CRT Scanlines simulation */
-body::before {
-  content: " ";
-  display: block;
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.2) 2px,
-    rgba(0, 0, 0, 0.2) 4px
-  );
-  pointer-events: none;
-  z-index: 9999;
-}
-
 /* Tactical Telemetry Typography & Components */
 .font-telemetry {
   font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", "IBM Plex Mono", Consolas, "Courier New", monospace;
