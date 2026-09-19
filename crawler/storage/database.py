@@ -4,7 +4,8 @@ import logging
 from contextlib import contextmanager
 from typing import Generator, Optional
 
-from sqlalchemy import create_engine
+import unicodedata
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -15,6 +16,26 @@ logger = logging.getLogger(__name__)
 
 _engine: Optional[Engine] = None
 _SessionFactory: Optional[sessionmaker] = None
+
+
+def remove_vietnamese_accents(text: str) -> str:
+    """Normalize and strip Vietnamese diacritics for accent-insensitive search."""
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    text = text.replace("đ", "d").replace("Đ", "D")
+    return unicodedata.normalize("NFC", text).lower().strip()
+
+
+@event.listens_for(Engine, "connect")
+def register_sqlite_functions(dbapi_con, connection_record):
+    """Register custom SQLite functions on every new SQLite connection."""
+    if hasattr(dbapi_con, "create_function"):
+        try:
+            dbapi_con.create_function("remove_accents", 1, remove_vietnamese_accents)
+        except Exception:
+            pass
 
 
 def get_engine(db_url: Optional[str] = None) -> Engine:
