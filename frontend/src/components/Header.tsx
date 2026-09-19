@@ -40,39 +40,35 @@ export function Header({ categories = [] }: HeaderProps) {
   return (
     <>
       <header className="sticky top-0 z-40 w-full bg-[#0A0A0A]/95 backdrop-blur border-b border-[#262626] text-[#EAEAEA] transition-colors">
+        {/* Row 1: Brand Logo & Global Terminal Controls */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-4">
+          <div className="flex items-center justify-between h-14 gap-4">
             {/* Left: Mobile Nav + Logo */}
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-3">
               <MobileNav categories={categories} onOpenSearch={() => setSearchOpen(true)} />
 
-              <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+              <Link href="/" className="flex items-center gap-2.5 group">
                 <span className="px-2.5 py-1 bg-[#E61919] text-white font-mono font-black text-xs tracking-widest border border-[#E61919] shadow-[0_0_10px_rgba(230,25,25,0.4)]">
                   VNE
                 </span>
                 <div className="flex flex-col">
-                  <span className="font-mono font-black text-sm sm:text-base tracking-wider text-[#EAEAEA] leading-none uppercase whitespace-nowrap">
+                  <span className="font-mono font-black text-sm sm:text-base tracking-wider text-[#EAEAEA] leading-none uppercase">
                     VnExpress<span className="text-[#E61919]"> // TELEMETRY</span>
                   </span>
-                  <span className="font-mono text-[9px] text-[#8A8A8A] tracking-widest uppercase mt-0.5 whitespace-nowrap">
+                  <span className="font-mono text-[9px] text-[#8A8A8A] tracking-widest uppercase mt-0.5">
                     TACTICAL WIRE • DECLASSIFIED
                   </span>
                 </div>
               </Link>
             </div>
 
-            {/* Middle: Desktop MegaMenu */}
-            <div className="hidden lg:flex flex-1 justify-center px-2 min-w-0">
-              <MegaMenu categories={categories} />
-            </div>
-
             {/* Right: Search trigger + Crawler status */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2.5">
               {/* Quick Search Button */}
               <button
                 onClick={() => setSearchOpen(true)}
                 type="button"
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#141414] text-[#8A8A8A] hover:text-[#EAEAEA] hover:border-[#E61919] text-xs font-mono tracking-wider transition-colors border border-[#262626] whitespace-nowrap"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#141414] text-[#8A8A8A] hover:text-[#EAEAEA] hover:border-[#E61919] text-xs font-mono tracking-wider transition-colors border border-[#262626]"
                 title="Tìm kiếm nhanh (Ctrl + K)"
               >
                 <Search className="w-3.5 h-3.5 text-[#8A8A8A]" />
@@ -97,6 +93,15 @@ export function Header({ categories = [] }: HeaderProps) {
             </div>
           </div>
         </div>
+
+        {/* Row 2: Dedicated Topic / Category Navigation Bar */}
+        {categories && categories.length > 0 && (
+          <div className="w-full bg-[#0E0E0E] border-t border-[#1F1F1F]">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <MegaMenu categories={categories} />
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Global Search Modal */}
