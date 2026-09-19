@@ -50,7 +50,29 @@ def session():
         category_id=cat2.id,
         published_at=datetime.now(timezone.utc),
     )
-    sess.add_all([art1, art2])
+    art3 = Article(
+        id=3003,
+        title="Người dân chi tiền mua điện thoại mới",
+        slug="nguoi-dan-chi-tien-mua-dien-thoai-moi-3003",
+        description="Doanh số các cửa hàng bán lẻ tăng mạnh trong ngày đầu mở bán.",
+        content_html="<p>Rất đông khách hàng đến xếp hàng để mua sắm thiết bị công nghệ.</p>",
+        content_text="Rất đông khách hàng đến xếp hàng để mua sắm thiết bị công nghệ.",
+        origin_url="https://vnexpress.net/3003.html",
+        category_id=cat1.id,
+        published_at=datetime.now(timezone.utc),
+    )
+    art4 = Article(
+        id=3004,
+        title="Mưa lớn kéo dài gây ngập lụt tại Hà Nội",
+        slug="mua-lon-keo-dai-gay-ngap-lut-tai-ha-noi-3004",
+        description="Trận mưa lớn khiến nhiều tuyến đường trung tâm thủ đô ngập sâu trong nước.",
+        content_html="<p>Hàng loạt phương tiện chết máy khi di chuyển qua các điểm ngập nước.</p>",
+        content_text="Hàng loạt phương tiện chết máy khi di chuyển qua các điểm ngập nước.",
+        origin_url="https://vnexpress.net/3004.html",
+        category_id=cat2.id,
+        published_at=datetime.now(timezone.utc),
+    )
+    sess.add_all([art1, art2, art3, art4])
     sess.commit()
 
     yield sess
@@ -122,3 +144,23 @@ def test_search_with_category_filter(client):
 def test_search_validation_empty_query(client):
     response = client.get("/api/v1/search?q=")
     assert response.status_code == 422  # min_length=1 validation error
+
+
+def test_search_accent_preservation_avoids_false_positive(client):
+    # Accented query "mưa ngập" must match article 3004 (rain & flood)
+    # and MUST NOT match article 3003 (purchasing phone "mua điện thoại")
+    response = client.get("/api/v1/search", params={"q": "mưa ngập"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["id"] == 3004
+
+
+def test_search_ha_noi_precision(client):
+    # Query "ha noi" must match article 3004 (which has "Hà Nội"), and not match other articles
+    response = client.get("/api/v1/search", params={"q": "ha noi"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["id"] == 3004
+    assert "hà nội" in data["items"][0]["snippet"].lower()

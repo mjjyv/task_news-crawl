@@ -26,6 +26,11 @@ def remove_vietnamese_accents(text: str) -> str:
     return unicodedata.normalize("NFC", text).lower().strip()
 
 
+def has_vietnamese_accents(text: str) -> bool:
+    """Check whether a text contains Vietnamese diacritics / accents."""
+    return remove_vietnamese_accents(text) != text.lower()
+
+
 class SearchService:
     """Service handling multi-field Vietnamese search with relevance scoring and snippet generation."""
 
@@ -162,96 +167,100 @@ class SearchService:
 
         title_raw = art.title.lower()
         title_norm = remove_vietnamese_accents(art.title)
+        desc_raw = (art.description or "").lower()
         desc_norm = remove_vietnamese_accents(art.description or "")
+        content_raw = (art.content_text or "").lower()
         content_norm = remove_vietnamese_accents(art.content_text or "")
 
+        raw_words = [re.sub(r"^[^\w]+|[^\w]+$", "", w).lower() for w in raw_query.split() if w]
+        raw_words = [w for w in raw_words if w]
+        norm_words = [remove_vietnamese_accents(w) for w in raw_words]
+        valid_kws = [k for k in norm_words if len(k) > 1]
+        if not valid_kws:
+            valid_kws = norm_words
+        n_kws = len(valid_kws)
+
         # 1. Exact full query phrase match
-        has_phrase_match = False
-        if raw_query.lower() in title_raw:
-            score += 50.0
-            has_phrase_match = True
-        elif norm_query in title_norm:
-            score += 40.0
-            has_phrase_match = True
+        phrase_in_title = raw_query.lower() in title_raw or norm_query in title_norm
+        phrase_in_desc = raw_query.lower() in desc_raw or norm_query in desc_norm
+        phrase_in_content = raw_query.lower() in content_raw or norm_query in content_norm
+        has_phrase_match = phrase_in_title or phrase_in_desc or phrase_in_content
 
-        if norm_query in desc_norm:
+        if phrase_in_title:
+            score += 60.0
+        if phrase_in_desc:
+            score += 30.0
+        if phrase_in_content:
             score += 20.0
-            has_phrase_match = True
 
-        if norm_query in content_norm:
-            score += 10.0
-            has_phrase_match = True
-
-        # 2. Word-boundary keyword matches
-        title_hits = 0
-        desc_hits = 0
-        content_hits = 0
+        # 2. Word-boundary keyword matches with accent awareness
         matched_words = set()
+        for rw, nw in zip(raw_words, norm_words):
+            if len(nw) <= 1:
+                continue
+            use_accent = has_vietnamese_accents(rw)
+            pat_raw = re.compile(r"\b" + re.escape(rw) + r"\b", re.IGNORECASE)
+            pat_norm = re.compile(r"\b" + re.escape(nw) + r"\b", re.IGNORECASE)
 
-        for kw in keywords:
-            pattern = re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE)
-            t_cnt = len(pattern.findall(title_norm))
-            d_cnt = len(pattern.findall(desc_norm))
-            c_cnt = len(pattern.findall(content_norm))
+            t_cnt = len(pat_raw.findall(title_raw)) if use_accent else len(pat_norm.findall(title_norm))
+            d_cnt = len(pat_raw.findall(desc_raw)) if use_accent else len(pat_norm.findall(desc_norm))
+            c_cnt = len(pat_raw.findall(content_raw)) if use_accent else len(pat_norm.findall(content_norm))
 
             if t_cnt > 0:
-                title_hits += t_cnt
-                matched_words.add(kw)
+                score += min(t_cnt * 10.0, 20.0)
+                matched_words.add(nw)
             if d_cnt > 0:
-                desc_hits += d_cnt
-                matched_words.add(kw)
+                score += min(d_cnt * 5.0, 10.0)
+                matched_words.add(nw)
             if c_cnt > 0:
-                content_hits += c_cnt
-                matched_words.add(kw)
+                score += min(c_cnt * 1.0, 10.0)
+                matched_words.add(nw)
 
-        score += title_hits * 10.0
-        score += desc_hits * 5.0
-        score += min(content_hits * 1.0, 10.0)
-
-        # Qualification filter:
-        # If no phrase match, ensure at least half of the query keywords matched as distinct whole words
-        min_required = max(1, (len(keywords) + 1) // 2)
-        if not has_phrase_match and len(matched_words) < min_required:
-            return 0.0, ""
+        # 3. Qualification filter:
+        if n_kws == 1:
+            if len(matched_words) < 1 and not has_phrase_match:
+                return 0.0, ""
+        elif n_kws == 2:
+            # Multi-word (2 words): both words must match OR exact phrase match
+            if not has_phrase_match and len(matched_words) < 2:
+                return 0.0, ""
+        else:
+            # >= 3 words: phrase match OR at least n_kws - 1 keywords match
+            if not has_phrase_match and len(matched_words) < max(2, n_kws - 1):
+                return 0.0, ""
 
         if score <= 0.0:
             return 0.0, ""
 
-        snippet = self._generate_snippet(art.content_text or art.description or "", keywords)
+        snippet = self._generate_snippet(art, valid_kws, norm_query)
         return score, snippet
 
-    def _generate_snippet(self, text: str, keywords: List[str], max_len: int = 160) -> str:
-        if not text:
-            return ""
+    def _generate_snippet(self, art: Article, keywords: List[str], norm_query: str, max_len: int = 160) -> str:
+        # Build clean single-spaced text from title, description and content
+        full_text = f"{art.title}. {art.description or ''} {art.content_text or ''}"
+        clean_text = re.sub(r"\s+", " ", full_text).strip()
+        norm_clean = remove_vietnamese_accents(clean_text)
 
-        norm_text = remove_vietnamese_accents(text)
-        best_pos = -1
-
-        for kw in keywords:
-            match = re.search(r"\b" + re.escape(kw) + r"\b", norm_text, re.IGNORECASE)
-            if match:
-                best_pos = match.start()
-                break
-
+        best_pos = norm_clean.find(norm_query)
         if best_pos == -1:
             for kw in keywords:
-                idx = norm_text.find(kw)
-                if idx != -1:
-                    best_pos = idx
+                match = re.search(r"\b" + re.escape(kw) + r"\b", norm_clean)
+                if match:
+                    best_pos = match.start()
                     break
 
         if best_pos == -1:
-            return text[:max_len] + ("..." if len(text) > max_len else "")
+            return clean_text[:max_len] + ("..." if len(clean_text) > max_len else "")
 
         start = max(0, best_pos - 40)
-        end = min(len(text), start + max_len)
+        end = min(len(clean_text), start + max_len)
 
         # Snap to word boundary
-        while start > 0 and text[start] not in (" ", "\n", ".", ","):
+        while start > 0 and clean_text[start] not in (" ", ".", ","):
             start -= 1
-        while end < len(text) and text[end] not in (" ", "\n", ".", ","):
+        while end < len(clean_text) and clean_text[end] not in (" ", ".", ","):
             end += 1
 
         prefix = "..." if start > 0 else ""
-        suffix = "..." if end < len(text) else ""
-        return prefix + text[start:end].strip() + suffix
+        suffix = "..." if end < len(clean_text) else ""
+        return prefix + clean_text[start:end].strip() + suffix
