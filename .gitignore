@@ -1,0 +1,19 @@
+# Virtual Environment
+.venv/
+env/
+venv/
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Databases & local data
+*.db
+*.sqlite
+data/
+news.db
+
+# Environment variables
+.env
