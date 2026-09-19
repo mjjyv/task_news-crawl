@@ -2,6 +2,7 @@
 .venv/
 env/
 venv/
+docs/
 
 # Byte-compiled / cache
 __pycache__/

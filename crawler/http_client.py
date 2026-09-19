@@ -108,11 +108,21 @@ class HttpClient:
                     backoff = (2 ** attempt) + random.uniform(0.5, 1.5)
                     time.sleep(backoff)
                     continue
+                if response.status_code in (400, 401, 403, 404, 410):
+                    response.raise_for_status()
                 response.raise_for_status()
                 return response
-            except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+            except httpx.HTTPStatusError as status_exc:
+                if status_exc.response.status_code in (400, 401, 403, 404, 410):
+                    logger.warning("Permanent client error %d on %s, not retrying.", status_exc.response.status_code, url)
+                    raise status_exc
+                last_exception = status_exc
+                logger.warning("Request error on %s: %s (attempt %d/%d)", url, status_exc, attempt, self.max_retries)
+                backoff = (2 ** attempt) + random.uniform(0.5, 1.5)
+                time.sleep(backoff)
+            except httpx.RequestError as exc:
                 last_exception = exc
-                logger.warning("Request error on %s: %s (attempt %d/%d)", url, exc, attempt, self.max_retries)
+                logger.warning("Network/Connection error on %s: %s (attempt %d/%d)", url, exc, attempt, self.max_retries)
                 backoff = (2 ** attempt) + random.uniform(0.5, 1.5)
                 time.sleep(backoff)
 
@@ -134,11 +144,21 @@ class HttpClient:
                     backoff = (2 ** attempt) + random.uniform(0.5, 1.5)
                     await asyncio.sleep(backoff)
                     continue
+                if response.status_code in (400, 401, 403, 404, 410):
+                    response.raise_for_status()
                 response.raise_for_status()
                 return response
-            except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+            except httpx.HTTPStatusError as status_exc:
+                if status_exc.response.status_code in (400, 401, 403, 404, 410):
+                    logger.warning("Permanent client error %d on %s, not retrying.", status_exc.response.status_code, url)
+                    raise status_exc
+                last_exception = status_exc
+                logger.warning("Request error on %s: %s (attempt %d/%d)", url, status_exc, attempt, self.max_retries)
+                backoff = (2 ** attempt) + random.uniform(0.5, 1.5)
+                await asyncio.sleep(backoff)
+            except httpx.RequestError as exc:
                 last_exception = exc
-                logger.warning("Request error on %s: %s (attempt %d/%d)", url, exc, attempt, self.max_retries)
+                logger.warning("Network/Connection error on %s: %s (attempt %d/%d)", url, exc, attempt, self.max_retries)
                 backoff = (2 ** attempt) + random.uniform(0.5, 1.5)
                 await asyncio.sleep(backoff)
 

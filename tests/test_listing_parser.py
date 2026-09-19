@@ -84,3 +84,35 @@ def test_generate_category_page_urls():
     assert urls[0] == "https://vnexpress.net/khoa-hoc-cong-nghe"
     assert urls[1] == "https://vnexpress.net/khoa-hoc-cong-nghe-p2"
     assert urls[4] == "https://vnexpress.net/khoa-hoc-cong-nghe-p5"
+
+
+def test_parse_listing_content_thoi_su_example(parser):
+    """Test extracting articles from content-thoi-su-example.html."""
+    html_file = DOCS_DIR / "content-thoi-su-example.html"
+    assert html_file.exists()
+
+    html_content = html_file.read_text(encoding="utf-8")
+    items = parser.parse_listing(html_content, category_slug="thoi-su")
+
+    # Verify article count (58 unique articles)
+    assert len(items) >= 55
+
+    # 1. Topstory article: Vinh mưa kỷ lục (5122322)
+    item_vinh = next((item for item in items if item.id == 5122322), None)
+    assert item_vinh is not None
+    assert "Vinh hứng trận mưa kỷ lục" in item_vinh.title
+    assert item_vinh.thumbnail_url is not None
+
+    # 2. Video thumbnail article: Quy hoạch sông Hồng (5120741)
+    item_video = next((item for item in items if item.id == 5120741), None)
+    assert item_video is not None
+    assert "Quy hoạch sông Hồng" in item_video.title
+    assert item_video.thumbnail_url is not None
+    assert "settop2" in item_video.thumbnail_url
+
+    # 3. Tong-thuat / Live report article: Hà Nội mưa trên 150 mm (5121155)
+    item_tongthuat = next((item for item in items if item.id == 5121155), None)
+    assert item_tongthuat is not None
+    assert "Hà Nội mưa trên 150 mm" in item_tongthuat.title
+    assert "-5121155-tong-thuat.html" in item_tongthuat.url
+

@@ -70,8 +70,12 @@ class ListingParser:
 
     def _parse_article_tag(self, tag: Tag, category_slug: Optional[str]) -> Optional[ParsedListingItem]:
         # 1. Extract link and title
-        title_tag = tag.select_one(".title-news a") or tag.select_one("h1 a, h2 a, h3 a, h4 a")
-        thumb_a = tag.select_one(".thumb-art a")
+        title_tag = (
+            tag.select_one(".title-news a")
+            or tag.select_one("h1 a, h2 a, h3 a, h4 a")
+            or tag.select_one(".inner-title")
+        )
+        thumb_a = tag.select_one(".thumb-art a, a.thumb")
 
         href = ""
         title = ""
@@ -88,6 +92,12 @@ class ListingParser:
             return None
 
         art_id = extract_article_id(href)
+        # Fallback to data-ea-aid or data-aid on article tag
+        if not art_id:
+            aid_attr = tag.get("data-ea-aid") or tag.get("data-aid")
+            if aid_attr and aid_attr.isdigit():
+                art_id = int(aid_attr)
+
         if not art_id:
             return None
 
@@ -102,22 +112,32 @@ class ListingParser:
                 sub.decompose()
             description = desc_tag.get_text(strip=True)
 
-        # 3. Extract thumbnail
+        # 3. Extract thumbnail (Image or Video preview/poster)
         thumbnail_url = None
-        img_tag = tag.select_one("picture img, .thumb-art img")
+        img_tag = tag.select_one("picture img, .thumb-art img, img")
         if img_tag:
             thumbnail_url = (
-                img_tag.get("data-src")
+                img_tag.get("data-desktop-src")
+                or img_tag.get("data-src")
                 or img_tag.get("src")
                 or img_tag.get("data-ll-status")
             )
             # Sometimes src is lazy placeholder, check srcset
             source_tag = tag.select_one("picture source")
             if source_tag and source_tag.get("srcset"):
-                # Take first url from srcset
                 srcset = source_tag["srcset"].split(",")[0].strip().split(" ")[0]
                 if srcset and not srcset.startswith("data:"):
                     thumbnail_url = srcset
+
+        # If no image thumbnail, check for video preview / poster (common in Thoi su / Video news)
+        if not thumbnail_url or thumbnail_url.startswith("data:"):
+            video_tag = tag.select_one("video")
+            if video_tag:
+                thumbnail_url = (
+                    video_tag.get("poster")
+                    or (video_tag.find("source").get("data-src-image") if video_tag.find("source") else None)
+                    or video_tag.get("src")
+                )
 
         # 4. Extract publication date if present
         published_at = None

@@ -60,8 +60,16 @@ class ParsedRSSItem(BaseModel):
 
 
 def extract_article_id(url: str) -> Optional[int]:
-    """Extract numeric article ID from VnExpress URL (e.g. *-5121093.html)."""
-    match = re.search(r"-(\d+)\.html(?:[?#].*)?$", url)
+    """Extract numeric article ID from VnExpress URL (supports standard, tong-thuat, p2, etc.)."""
+    if not url:
+        return None
+
+    # Exclude author and tag pages
+    if "/tac-gia/" in url or "/tag/" in url:
+        return None
+
+    # Match: -<id>.html or -<id>-<suffix>.html where suffix is tong-thuat, p2, video, etc.
+    match = re.search(r"-(\d+)(?:-(?:tong-thuat|p\d+|video|preview|box))?\.html(?:[?#].*)?$", url)
     if match:
         try:
             return int(match.group(1))
@@ -71,12 +79,14 @@ def extract_article_id(url: str) -> Optional[int]:
 
 
 def extract_slug(url: str) -> str:
-    """Extract slug from VnExpress URL or path."""
+    """Extract clean article or category slug from URL."""
     parsed = urlparse(url)
     path = parsed.path.strip("/")
     if path.endswith(".html"):
         filename = path[:-5]
-        # Remove trailing ID if present
+        # Remove trailing known suffix if present
+        filename = re.sub(r"-(?:tong-thuat|p\d+|video|preview|box)$", "", filename)
+        # Remove trailing ID
         parts = filename.rsplit("-", 1)
         if len(parts) == 2 and parts[1].isdigit():
             return parts[0]

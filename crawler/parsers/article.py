@@ -182,17 +182,48 @@ class ArticleParser:
         return None
 
     def _extract_media(self, container: Tag) -> List[ParsedMedia]:
+        import html as html_lib
         media_list: List[ParsedMedia] = []
         seen_urls = set()
 
-        # Extract figures and images
+        # 1. Extract Gallery items (common in photo stories / albums across all categories)
+        for g_item in container.select(".item_gallery_new, .gallery_block .item_gallery"):
+            g_img = g_item.find("img")
+            img_url = (
+                (g_img.get("data-desktop-src") or g_img.get("data-src") or g_img.get("src"))
+                if g_img
+                else (g_item.get("data-component-value1") or g_item.get("data-src"))
+            )
+            if img_url and not img_url.startswith("data:") and img_url not in seen_urls:
+                seen_urls.add(img_url)
+                caption = None
+                if g_img and g_img.get("data-caption"):
+                    raw_cap = html_lib.unescape(g_img["data-caption"])
+                    cap_soup = BeautifulSoup(raw_cap, "html.parser")
+                    caption = cap_soup.get_text(strip=True)
+
+                if not caption:
+                    cap_div = g_item.find_next_sibling(class_=re.compile(r"caption[-_]gallery|desc_cation"))
+                    if cap_div:
+                        caption = cap_div.get_text(strip=True)
+
+                media_list.append(
+                    ParsedMedia(
+                        type="image",
+                        url=img_url,
+                        caption=caption or None,
+                    )
+                )
+
+        # 2. Extract Figures and standard images
         for fig in container.find_all("figure"):
             img = fig.find("img")
             if not img:
                 continue
 
             img_url = (
-                img.get("data-src")
+                img.get("data-desktop-src")
+                or img.get("data-src")
                 or img.get("src")
             )
             if not img_url or img_url.startswith("data:") or img_url in seen_urls:
@@ -200,11 +231,19 @@ class ArticleParser:
 
             seen_urls.add(img_url)
 
-            # Caption
+            # Caption: figcaption, desc_cation, caption-gallery, or data-caption
             caption = None
             figcaption = fig.find("figcaption")
             if figcaption:
                 caption = figcaption.get_text(strip=True)
+            elif fig.select_one(".caption-gallery, .desc_cation, .caption"):
+                caption = fig.select_one(".caption-gallery, .desc_cation, .caption").get_text(strip=True)
+            elif img.get("data-caption"):
+                raw_cap = html_lib.unescape(img["data-caption"])
+                cap_soup = BeautifulSoup(raw_cap, "html.parser")
+                caption = cap_soup.get_text(strip=True)
+            elif img.get("alt"):
+                caption = img["alt"].strip()
 
             width = int(img["width"]) if img.has_attr("width") and img["width"].isdigit() else None
             height = int(img["height"]) if img.has_attr("height") and img["height"].isdigit() else None
@@ -213,26 +252,68 @@ class ArticleParser:
                 ParsedMedia(
                     type="image",
                     url=img_url,
-                    caption=caption,
+                    caption=caption or None,
                     width=width,
                     height=height,
                 )
             )
 
-        # In case images were not inside figure tags
+        # 3. In case images were not inside figure or gallery tags
         for img in container.find_all("img"):
-            img_url = img.get("data-src") or img.get("src")
+            img_url = img.get("data-desktop-src") or img.get("data-src") or img.get("src")
             if not img_url or img_url.startswith("data:") or img_url in seen_urls:
                 continue
             seen_urls.add(img_url)
-            caption = img.get("alt") or None
+            caption = None
+            if img.get("data-caption"):
+                raw_cap = html_lib.unescape(img["data-caption"])
+                cap_soup = BeautifulSoup(raw_cap, "html.parser")
+                caption = cap_soup.get_text(strip=True)
+            else:
+                caption = img.get("alt")
+
             media_list.append(
                 ParsedMedia(
                     type="image",
                     url=img_url,
-                    caption=caption,
+                    caption=caption or None,
                 )
             )
+
+        # 4. Extract embedded videos inside article body
+        for v_el in container.select("video, [data-video], [data-component-type='video']"):
+            video_url = (
+                v_el.get("data-video")
+                or v_el.get("src")
+                or (v_el.find("source").get("src") if v_el.find("source") else None)
+            )
+            if video_url and video_url not in seen_urls and not video_url.startswith("data:"):
+                seen_urls.add(video_url)
+                v_cap = v_el.get("title") or (v_el.find_parent("figure").find("figcaption").get_text(strip=True) if v_el.find_parent("figure") and v_el.find_parent("figure").find("figcaption") else None)
+                media_list.append(
+                    ParsedMedia(
+                        type="video",
+                        url=video_url,
+                        caption=v_cap or None,
+                    )
+                )
+
+        # 5. Extract audio / podcast inside article body
+        for a_el in container.select("audio, [data-audio], [data-component-type='audio']"):
+            audio_url = (
+                a_el.get("data-audio")
+                or a_el.get("src")
+                or (a_el.find("source").get("src") if a_el.find("source") else None)
+            )
+            if audio_url and audio_url not in seen_urls and not audio_url.startswith("data:"):
+                seen_urls.add(audio_url)
+                media_list.append(
+                    ParsedMedia(
+                        type="audio",
+                        url=audio_url,
+                        caption=a_el.get("title") or "Audio Podcast",
+                    )
+                )
 
         return media_list
 
