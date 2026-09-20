@@ -105,11 +105,18 @@ class ListingParser:
 
         # 2. Extract description (sapo) and comment count
         comment_count = 0
-        cmt_tag = tag.select_one(".count_cmt span") or tag.select_one(".count_cmt")
+        cmt_tag = (
+            tag.select_one(".meta-news .count_cmt span")
+            or tag.select_one(".count_cmt [class*='widget-comment']")
+            or tag.select_one(".count_cmt span")
+            or tag.select_one(".meta-news .font_icon")
+            or tag.select_one(".count_cmt")
+            or tag.select_one("[class*='widget-comment']")
+        )
         if cmt_tag:
-            raw = cmt_tag.get_text(strip=True).replace(",", "").replace(".", "")
-            if raw.isdigit():
-                comment_count = int(raw)
+            digits = re.sub(r"[^\d]", "", cmt_tag.get_text(strip=True))
+            if digits:
+                comment_count = int(digits)
 
         description = None
         desc_tag = tag.select_one("p.description")

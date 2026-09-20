@@ -58,7 +58,7 @@ def test_crawler_health_dashboard(client):
     assert response.status_code == 200
     data = response.json()
     assert data["database_connected"] is True
-    assert "status" in data
+    assert data["status"] == "healthy"
     assert "total_categories" in data
     assert "total_articles" in data
     assert "total_media" in data

@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   title: "VnExpress News Reader | Nền tảng đọc báo tối giản",
   description:
     "Hệ thống thu thập và đọc tin tức tự động từ VnExpress, tối ưu hóa tốc độ, loại bỏ quảng cáo và bảo vệ quyền riêng tư.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default async function RootLayout({

@@ -133,13 +133,28 @@ def test_parse_gallery_and_video_article(parser):
 
 
 def test_parse_content_news_detail_with_comments(parser):
-    with open("docs/content-news-detail.html", "r", encoding="utf-8") as f:
-        html = f.read()
+    from pathlib import Path
+    p = Path("docs/html-templates/content-news-detail.html")
+    if not p.exists():
+        p = Path("docs/content-news-detail.html")
+    html = p.read_text(encoding="utf-8")
     url = "https://vnexpress.net/vinh-hung-tran-mua-ky-luc-trong-hon-40-nam-5122322.html"
     parsed = parser.parse(html, url)
     assert parsed is not None
     assert parsed.id == 5122322
     assert parsed.title == "Vinh hứng trận mưa kỷ lục trong hơn 40 năm"
     assert parsed.comment_count == 3
+
+
+def test_parse_meta_news_detail_comment_count(parser):
+    with open("docs/html-templates/meta-news.html", "r", encoding="utf-8") as f:
+        html = f.read()
+
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "lxml")
+    comment_count = parser._extract_comment_count(soup)
+    # The meta-news template contains: (<label id="total_comment">26</label>)
+    assert comment_count == 26
+
 
 

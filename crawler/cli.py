@@ -95,6 +95,30 @@ def cmd_crawl_article(args):
         sys.exit(1)
 
 
+def cmd_update_comments(args):
+    init_db()
+    from crawler.storage.models import Article
+    from sqlalchemy import select
+    pipeline = ArticlePipeline()
+    updated = 0
+    with get_db_session() as session:
+        stmt = select(Article).order_by(Article.published_at.desc().nulls_last())
+        if args.limit:
+            stmt = stmt.limit(args.limit)
+        articles = session.execute(stmt).scalars().all()
+        print(f"\n--- ĐỒNG BỘ LƯỢT BÌNH LUẬN TRỰC TIẾP TỪ VNEXPRESS ({len(articles)} bài viết) ---")
+        for art in articles:
+            old_count = art.comment_count
+            live_count = pipeline.fetch_live_comment_count(art.id)
+            if live_count > 0 and live_count != old_count:
+                art.comment_count = live_count
+                updated += 1
+                print(f"  [+] Bài {art.id}: {old_count} -> {live_count} bình luận ({art.title[:45]}...)")
+            else:
+                print(f"  [-] Bài {art.id}: {art.comment_count} bình luận ({art.title[:45]}...)")
+    print(f"\nHoàn tất! Đã cập nhật số lượng bình luận mới cho {updated}/{len(articles)} bài viết.\n")
+
+
 def cmd_stats(args):
     init_db()
     with get_db_session() as session:
@@ -155,6 +179,11 @@ def main():
     p_art = subparsers.add_parser("crawl-article", help="Crawl chi tiết một bài viết cụ thể qua URL")
     p_art.add_argument("url", help="URL bài viết VnExpress (*-<id>.html)")
     p_art.set_defaults(func=cmd_crawl_article)
+
+    # update-comments
+    p_ucmt = subparsers.add_parser("update-comments", help="Đồng bộ số lượng bình luận thời gian thực từ VnExpress")
+    p_ucmt.add_argument("--limit", type=int, default=50, help="Số lượng bài viết tối đa cần đồng bộ (mặc định 50)")
+    p_ucmt.set_defaults(func=cmd_update_comments)
 
     # stats
     p_stats = subparsers.add_parser("stats", help="Xem thống kê tổng quan dữ liệu đã thu thập")

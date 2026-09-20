@@ -99,13 +99,46 @@ class LocalDeduplicator(Deduplicator):
         self._seen.clear()
 
 
-def get_deduplicator(prefer_redis: bool = True, load_from_db: bool = True) -> Deduplicator:
-    """Factory to get RedisDeduplicator with automatic fallback to LocalDeduplicator."""
+_global_deduplicator: Optional[Deduplicator] = None
+_redis_warning_logged: bool = False
+
+
+def check_redis_connection(redis_url: str = settings.redis_url) -> bool:
+    """Check if Redis server is reachable without throwing errors."""
+    try:
+        import redis
+        client = redis.from_url(redis_url, socket_timeout=1.0, decode_responses=True)
+        return bool(client.ping())
+    except Exception:
+        return False
+
+
+def get_deduplicator(
+    prefer_redis: bool = True,
+    load_from_db: bool = True,
+    use_singleton: bool = True,
+) -> Deduplicator:
+    """Factory to get Deduplicator with automatic fallback and singleton caching."""
+    global _global_deduplicator, _redis_warning_logged
+
+    if use_singleton and _global_deduplicator is not None:
+        return _global_deduplicator
+
     if prefer_redis:
         try:
-            return RedisDeduplicator()
+            instance = RedisDeduplicator()
+            if use_singleton:
+                _global_deduplicator = instance
+            return instance
         except Exception as exc:
-            logger.warning("Could not connect to Redis (%s). Falling back to LocalDeduplicator.", exc)
+            if not _redis_warning_logged:
+                logger.warning(
+                    "Could not connect to Redis (%s). Operating with Local In-Memory Deduplicator.",
+                    exc,
+                )
+                _redis_warning_logged = True
+            else:
+                logger.debug("Redis unreachable (%s), continuing with Local Deduplicator.", exc)
 
     initial_ids = set()
     if load_from_db:
@@ -119,4 +152,15 @@ def get_deduplicator(prefer_redis: bool = True, load_from_db: bool = True) -> De
         except Exception as db_exc:
             logger.debug("Could not pre-load seen article IDs from DB: %s", db_exc)
 
-    return LocalDeduplicator(initial_ids=initial_ids)
+    instance = LocalDeduplicator(initial_ids=initial_ids)
+    if use_singleton:
+        _global_deduplicator = instance
+    return instance
+
+
+def reset_deduplicator() -> None:
+    """Reset the singleton deduplicator instance (useful in test teardown)."""
+    global _global_deduplicator, _redis_warning_logged
+    _global_deduplicator = None
+    _redis_warning_logged = False
+

@@ -92,6 +92,7 @@ class ArticlePipeline:
                             fallback_title=item.title,
                             fallback_desc=item.description,
                             fallback_thumb=item.thumbnail_url,
+                            fallback_comment_count=item.comment_count,
                         )
 
                         if success:
@@ -174,6 +175,20 @@ class ArticlePipeline:
 
         return {"articles_found": total_found, "articles_new": total_new}
 
+    def fetch_live_comment_count(self, article_id: int) -> int:
+        """Query VnExpress official comment API for exact live comment count."""
+        url = f"https://usi-saas.vnexpress.net/index/get?objectid={article_id}&objecttype=1&siteid=1000000"
+        try:
+            resp = self.http_client.fetch(url, timeout=3.0)
+            data = resp.json()
+            if isinstance(data, dict) and data.get("error") == 0:
+                total = data.get("data", {}).get("total", 0)
+                logger.debug("Live comment API for [%d]: %d comments", article_id, total)
+                return int(total)
+        except Exception as exc:
+            logger.debug("Could not fetch live comment count for [%d]: %s", article_id, exc)
+        return 0
+
     def crawl_single_article(self, url: str) -> Optional[ParsedArticle]:
         """Fetch, parse, and save a single article by URL."""
         with get_db_session() as session:
@@ -183,6 +198,12 @@ class ArticlePipeline:
                 parsed = self.article_parser.parse(resp.text, url)
                 if not parsed:
                     return None
+
+                # If static HTML had 0 comments, try live comment API
+                if (not parsed.comment_count or parsed.comment_count == 0) and parsed.id:
+                    live_count = self.fetch_live_comment_count(parsed.id)
+                    if live_count > 0:
+                        parsed.comment_count = live_count
 
                 cat_id = None
                 if parsed.category_slug:
@@ -220,6 +241,7 @@ class ArticlePipeline:
         fallback_title: Optional[str] = None,
         fallback_desc: Optional[str] = None,
         fallback_thumb: Optional[str] = None,
+        fallback_comment_count: Optional[int] = None,
     ) -> bool:
         """Internal helper to fetch article detail, parse, and store."""
         try:
@@ -235,6 +257,15 @@ class ArticlePipeline:
                 if db_cat:
                     category_id = db_cat.id
 
+            # Determine comment count: parsed detail -> fallback from listing -> live comment API
+            final_comment_count = parsed.comment_count
+            if (not final_comment_count or final_comment_count == 0) and fallback_comment_count:
+                final_comment_count = fallback_comment_count
+            if (not final_comment_count or final_comment_count == 0) and parsed.id:
+                live_comments = self.fetch_live_comment_count(parsed.id)
+                if live_comments > 0:
+                    final_comment_count = live_comments
+
             article_data = {
                 "id": parsed.id,
                 "title": parsed.title or fallback_title or "Không có tiêu đề",
@@ -247,12 +278,12 @@ class ArticlePipeline:
                 "origin_url": parsed.origin_url,
                 "category_id": category_id,
                 "published_at": parsed.published_at,
-                "comment_count": parsed.comment_count,
+                "comment_count": final_comment_count or 0,
             }
             media_items = [m.model_dump() for m in parsed.media]
 
             repo.upsert_article(article_data, media_items)
-            logger.info("Successfully ingested article [%d]: %s", parsed.id, parsed.title[:50])
+            logger.info("Successfully ingested article [%d]: %s (comments: %d)", parsed.id, parsed.title[:50], final_comment_count or 0)
             return True
         except Exception as exc:
             logger.error("Failed to fetch/save article %s: %s", url, exc)

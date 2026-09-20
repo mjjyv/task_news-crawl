@@ -7,6 +7,8 @@ from crawler.parsers.listing import ListingParser
 
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
+if (DOCS_DIR / "html-templates").exists():
+    DOCS_DIR = DOCS_DIR / "html-templates"
 
 
 @pytest.fixture
@@ -115,4 +117,24 @@ def test_parse_listing_content_thoi_su_example(parser):
     assert item_tongthuat is not None
     assert "Hà Nội mưa trên 150 mm" in item_tongthuat.title
     assert "-5121155-tong-thuat.html" in item_tongthuat.url
+
+
+def test_parse_meta_news_listing_comment_count(parser):
+    with open("docs/html-templates/meta-news.html", "r", encoding="utf-8") as f:
+        meta_html = f.read()
+
+    # Wrap the news-list snippet from meta-news.html inside an article container
+    html = f"""
+    <article class="item-news">
+        <h3 class="title-news">
+            <a href="https://vnexpress.net/sap-nha-6-tang-dang-thi-cong-o-can-tho-5122309.html">Sập nhà 6 tầng đang thi công ở Cần Thơ</a>
+        </h3>
+        {meta_html}
+    </article>
+    """
+    items = parser.parse_listing(html, "thoi-su")
+    assert len(items) == 1
+    assert items[0].id == 5122309
+    assert items[0].comment_count == 21
+
 

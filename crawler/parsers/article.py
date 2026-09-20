@@ -364,25 +364,33 @@ class ArticleParser:
 
     def _extract_comment_count(self, soup: BeautifulSoup) -> int:
         """Extract number of comments from article detail HTML."""
-        # Check standard VnExpress comment counters
+        # 1. Check total_comment label (as in docs/html-templates/meta-news.html) and standard selectors
         selectors = [
+            "#total_comment",
+            "label#total_comment",
+            ".ykien_vne #total_comment",
+            ".ykien_vne label",
             "span.number_cmt",
             "span.num_cmt_detail",
             "li.li_comment .number_cmt",
             ".social_comment .number_cmt",
+            ".meta-news .count_cmt span",
             ".count_cmt span",
+            ".meta-news .font_icon",
+            ".count_cmt",
         ]
         for sel in selectors:
             tag = soup.select_one(sel)
             if tag:
-                raw = tag.get_text(strip=True).replace(",", "").replace(".", "")
-                if raw.isdigit():
-                    return int(raw)
+                digits = re.sub(r"[^\d]", "", tag.get_text(strip=True))
+                if digits:
+                    return int(digits)
 
-        # Fallback: search for elements with widget-comment-{id}-{idx} class
-        for span in soup.find_all("span", class_=lambda c: c and "widget-comment" in c):
-            raw = span.get_text(strip=True).replace(",", "").replace(".", "")
-            if raw.isdigit():
-                return int(raw)
+        # 2. Fallback: search for elements with widget-comment-{id}-{idx} class
+        for el in soup.find_all(lambda e: e.has_attr("class") and any("widget-comment" in str(c) for c in e.get("class", []))):
+            digits = re.sub(r"[^\d]", "", el.get_text(strip=True))
+            if digits:
+                return int(digits)
 
         return 0
+

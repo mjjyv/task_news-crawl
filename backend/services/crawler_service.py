@@ -31,22 +31,17 @@ class CrawlerService:
             logger.error("DB health check failed: %s", exc)
             db_ok = False
 
-        # 2. Redis connection check
-        redis_ok = False
+        # 2. Deduplicator and Redis connection check
         dedup = get_deduplicator()
-        if isinstance(dedup, RedisDeduplicator):
-            redis_ok = True
+        redis_ok = isinstance(dedup, RedisDeduplicator)
         dedup_type = "Redis Set" if redis_ok else "Local In-Memory"
 
         # 3. Overall stats
         stats = self.repo.get_stats()
         seen_count = dedup.count()
 
-        status = "healthy"
-        if not db_ok:
-            status = "unhealthy"
-        elif not redis_ok:
-            status = "degraded"  # Working with in-memory fallback
+        # Database is the essential core; Local Deduplicator is fully supported
+        status = "healthy" if db_ok else "unhealthy"
 
         logs = [
             CrawlLogItem(
