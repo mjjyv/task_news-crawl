@@ -11,8 +11,7 @@ export const metadata: Metadata = {
   description:
     "Hệ thống thu thập và đọc tin tức tự động từ VnExpress, tối ưu hóa tốc độ, loại bỏ quảng cáo và bảo vệ quyền riêng tư.",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/favicon.ico",
+    icon: "/favicon.ico",
   },
 };
 
