@@ -56,9 +56,11 @@ def cmd_crawl_category(args):
         category_slug=args.slug,
         max_pages=args.pages,
         max_articles=args.max_articles,
+        recursive=getattr(args, "recursive", False),
     )
+    rec_str = " (kèm toàn bộ danh mục con)" if getattr(args, "recursive", False) else ""
     print(
-        f"\nCrawl category '{args.slug}' hoàn tất: "
+        f"\nCrawl category '{args.slug}'{rec_str} hoàn tất: "
         f"Tìm thấy {result['articles_found']} bài viết, thu thập mới {result['articles_new']} bài."
     )
 
@@ -167,6 +169,12 @@ def main():
     p_cat.add_argument("slug", help="Slug chuyên mục (vd: khoa-hoc-cong-nghe, thoi-su, the-gioi)")
     p_cat.add_argument("--pages", type=int, default=1, help="Số lượng trang cần duyệt (1 đến 20)")
     p_cat.add_argument("--max-articles", type=int, default=None, help="Giới hạn tối đa số bài viết mới")
+    p_cat.add_argument(
+        "-r",
+        "--recursive",
+        action="store_true",
+        help="Tự động duyệt đệ quy toàn bộ các chuyên mục con thuộc chuyên mục này",
+    )
     p_cat.set_defaults(func=cmd_crawl_category)
 
     # crawl-rss

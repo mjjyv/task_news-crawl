@@ -36,8 +36,11 @@ class ArticlePipeline:
         category_slug: str,
         max_pages: int = 20,
         max_articles: Optional[int] = None,
+        recursive: bool = False,
     ) -> Dict[str, int]:
-        """Crawl a category from page 1 up to max_pages (or until no more articles found)."""
+        """Crawl a category from page 1 up to max_pages (or until no more articles found).
+        If recursive=True, also crawl all child subcategories.
+        """
         cat_url = urljoin(settings.base_url, "/" + category_slug.strip("/"))
         page_urls = self.listing_parser.generate_category_page_urls(cat_url, total_pages=max_pages)
 
@@ -112,9 +115,37 @@ class ArticlePipeline:
                 articles_new=total_new,
             )
 
+        # Recursive crawl for all child subcategories
+        if recursive:
+            with get_db_session() as session:
+                repo = Repository(session)
+                db_cat = repo.get_category_by_slug(category_slug)
+                if db_cat:
+                    subcats = repo.get_subcategories(db_cat.id)
+                    if subcats:
+                        logger.info(
+                            "Discovered %d subcategories under '%s'. Crawling subtopics...",
+                            len(subcats),
+                            category_slug,
+                        )
+                        for sub in subcats:
+                            if max_articles and total_new >= max_articles:
+                                break
+                            remaining = (max_articles - total_new) if max_articles else None
+                            logger.info("--> Crawling subcategory '%s' (up to %d pages)", sub.slug, max_pages)
+                            sub_res = self.crawl_category(
+                                category_slug=sub.slug,
+                                max_pages=max_pages,
+                                max_articles=remaining,
+                                recursive=False,
+                            )
+                            total_found += sub_res["articles_found"]
+                            total_new += sub_res["articles_new"]
+
         logger.info(
-            "Crawl finished for '%s': %d articles found, %d newly ingested.",
+            "Crawl finished for '%s' (recursive=%s): %d articles found, %d newly ingested.",
             category_slug,
+            recursive,
             total_found,
             total_new,
         )

@@ -64,6 +64,12 @@ class Repository:
         stmt = stmt.order_by(Category.name)
         return list(self.session.execute(stmt).scalars().all())
 
+    def get_subcategories(self, parent_id: int) -> List[Category]:
+        """Get all child subcategories for a given parent category ID."""
+        stmt = select(Category).where(Category.parent_id == parent_id).order_by(Category.name)
+        return list(self.session.execute(stmt).scalars().all())
+
+
     # ------------------ ARTICLES ------------------
 
     def upsert_article(
