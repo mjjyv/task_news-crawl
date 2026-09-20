@@ -92,7 +92,12 @@ class HttpClient:
             )
         return self._async_client
 
-    def fetch(self, url: str, headers: Optional[Dict[str, str]] = None) -> httpx.Response:
+    def fetch(
+        self,
+        url: str,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None,
+    ) -> httpx.Response:
         """Fetch URL synchronously with retry and delay."""
         client = self.get_sync_client()
         last_exception = None
@@ -102,7 +107,7 @@ class HttpClient:
             req_headers = self._get_random_headers(headers)
             try:
                 logger.debug("Fetching (sync) [%d/%d]: %s", attempt, self.max_retries, url)
-                response = client.get(url, headers=req_headers)
+                response = client.get(url, headers=req_headers, timeout=timeout or self.timeout)
                 if response.status_code in (429, 500, 502, 503, 504):
                     logger.warning("HTTP %d for %s (attempt %d/%d)", response.status_code, url, attempt, self.max_retries)
                     backoff = (2 ** attempt) + random.uniform(0.5, 1.5)
@@ -128,7 +133,12 @@ class HttpClient:
 
         raise RuntimeError(f"Failed to fetch {url} after {self.max_retries} attempts: {last_exception}")
 
-    async def fetch_async(self, url: str, headers: Optional[Dict[str, str]] = None) -> httpx.Response:
+    async def fetch_async(
+        self,
+        url: str,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None,
+    ) -> httpx.Response:
         """Fetch URL asynchronously with retry and delay."""
         client = self.get_async_client()
         last_exception = None
@@ -138,7 +148,7 @@ class HttpClient:
             req_headers = self._get_random_headers(headers)
             try:
                 logger.debug("Fetching (async) [%d/%d]: %s", attempt, self.max_retries, url)
-                response = await client.get(url, headers=req_headers)
+                response = await client.get(url, headers=req_headers, timeout=timeout or self.timeout)
                 if response.status_code in (429, 500, 502, 503, 504):
                     logger.warning("HTTP %d for %s (attempt %d/%d)", response.status_code, url, attempt, self.max_retries)
                     backoff = (2 ** attempt) + random.uniform(0.5, 1.5)

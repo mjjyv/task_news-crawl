@@ -101,24 +101,44 @@ def cmd_update_comments(args):
     init_db()
     from crawler.storage.models import Article
     from sqlalchemy import select
+    import concurrent.futures
+
     pipeline = ArticlePipeline()
-    updated = 0
     with get_db_session() as session:
-        stmt = select(Article).order_by(Article.published_at.desc().nulls_last())
-        if args.limit:
+        stmt = select(Article.id, Article.title, Article.comment_count).order_by(Article.published_at.desc().nulls_last())
+        if args.limit and args.limit > 0:
             stmt = stmt.limit(args.limit)
-        articles = session.execute(stmt).scalars().all()
-        print(f"\n--- ĐỒNG BỘ LƯỢT BÌNH LUẬN TRỰC TIẾP TỪ VNEXPRESS ({len(articles)} bài viết) ---")
-        for art in articles:
-            old_count = art.comment_count
-            live_count = pipeline.fetch_live_comment_count(art.id)
-            if live_count > 0 and live_count != old_count:
-                art.comment_count = live_count
-                updated += 1
-                print(f"  [+] Bài {art.id}: {old_count} -> {live_count} bình luận ({art.title[:45]}...)")
-            else:
-                print(f"  [-] Bài {art.id}: {art.comment_count} bình luận ({art.title[:45]}...)")
-    print(f"\nHoàn tất! Đã cập nhật số lượng bình luận mới cho {updated}/{len(articles)} bài viết.\n")
+        rows = session.execute(stmt).all()
+        article_items = [(r[0], r[1], r[2]) for r in rows]
+
+    total_articles = len(article_items)
+    print(f"\n--- ĐỒNG BỘ LƯỢT BÌNH LUẬN TRỰC TIẾP TỪ VNEXPRESS ({total_articles} bài viết) ---")
+
+    def fetch_one(item):
+        aid, title, old_c = item
+        live_c = pipeline.fetch_live_comment_count(aid)
+        return aid, title, old_c, live_c
+
+    results = []
+    updated_count = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        for idx, (aid, title, old_c, live_c) in enumerate(executor.map(fetch_one, article_items), 1):
+            results.append((aid, live_c))
+            if live_c > 0 and live_c != old_c:
+                updated_count += 1
+                print(f"  [{idx}/{total_articles}] [+] Bài {aid}: {old_c} -> {live_c} bình luận ({title[:42]}...)")
+            elif idx % 25 == 0 or idx == total_articles:
+                print(f"  [{idx}/{total_articles}] Đang xử lý... ({updated_count} bài có bình luận mới)")
+
+    # Batch update into DB
+    with get_db_session() as session:
+        for aid, live_c in results:
+            if live_c > 0:
+                art = session.get(Article, aid)
+                if art:
+                    art.comment_count = live_c
+
+    print(f"\nHoàn tất! Đã cập nhật số lượng bình luận mới cho {updated_count}/{total_articles} bài viết.\n")
 
 
 def cmd_stats(args):

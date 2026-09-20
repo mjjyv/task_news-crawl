@@ -209,11 +209,16 @@ class ArticlePipeline:
     def fetch_live_comment_count(self, article_id: int) -> int:
         """Query VnExpress official comment API for exact live comment count."""
         url = f"https://usi-saas.vnexpress.net/index/get?objectid={article_id}&objecttype=1&siteid=1000000"
+        headers = {"Referer": "https://vnexpress.net/"}
         try:
-            resp = self.http_client.fetch(url, timeout=3.0)
+            resp = self.http_client.fetch(url, headers=headers, timeout=5.0)
             data = resp.json()
             if isinstance(data, dict) and data.get("error") == 0:
-                total = data.get("data", {}).get("total", 0)
+                payload = data.get("data", {})
+                # totalitem includes all root comments and nested replies
+                total = payload.get("totalitem")
+                if total is None:
+                    total = payload.get("total", 0)
                 logger.debug("Live comment API for [%d]: %d comments", article_id, total)
                 return int(total)
         except Exception as exc:
