@@ -285,9 +285,11 @@ class Repository:
             select(Article)
             .where(Article.id.not_in(has_media_subq))
             .order_by(Article.published_at.desc().nulls_last())
-            .offset(offset)
-            .limit(limit)
         )
+        if offset > 0:
+            stmt = stmt.offset(offset)
+        if limit and limit > 0:
+            stmt = stmt.limit(limit)
         if category_id:
             stmt = stmt.where(Article.category_id == category_id)
         return list(self.session.execute(stmt).scalars().all())
@@ -312,9 +314,11 @@ class Repository:
             select(Article)
             .where(rich_condition)
             .order_by(Article.published_at.desc().nulls_last())
-            .offset(offset)
-            .limit(limit)
         )
+        if offset > 0:
+            stmt = stmt.offset(offset)
+        if limit and limit > 0:
+            stmt = stmt.limit(limit)
         if category_id:
             stmt = stmt.where(Article.category_id == category_id)
         return list(self.session.execute(stmt).scalars().all())
@@ -328,9 +332,11 @@ class Repository:
             select(Article)
             .where(Article.comment_count > 0, Article.id.not_in(has_comment_subq))
             .order_by(Article.comment_count.desc(), Article.published_at.desc().nulls_last())
-            .offset(offset)
-            .limit(limit)
         )
+        if offset > 0:
+            stmt = stmt.offset(offset)
+        if limit and limit > 0:
+            stmt = stmt.limit(limit)
         if category_id:
             stmt = stmt.where(Article.category_id == category_id)
         return list(self.session.execute(stmt).scalars().all())

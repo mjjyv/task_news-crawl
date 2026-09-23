@@ -1,6 +1,7 @@
 """Integration tests for Article filtering by post_type and Crawler health stats with comments."""
 
 from datetime import datetime, timezone
+from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -135,14 +136,21 @@ def test_crawler_health_includes_total_comments(client):
 
 
 def test_trigger_backfill_endpoint(client):
-    payload = {
-        "mode": "missing-media",
-        "limit": 10,
-        "delay": 0.0,
-    }
-    resp = client.post("/api/v1/crawler/backfill", json=payload)
-    assert resp.status_code == 202
-    data = resp.json()
-    assert data["status"] == "accepted"
-    assert data["mode"] == "missing-media"
-    assert data["limit"] == 10
+    with patch("backend.services.crawler_service.CrawlerService.execute_backfill_task") as mock_backfill:
+        payload = {
+            "mode": "missing-media",
+            "limit": 10,
+            "delay": 0.0,
+        }
+        resp = client.post("/api/v1/crawler/backfill", json=payload)
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["status"] == "accepted"
+        assert data["mode"] == "missing-media"
+        assert data["limit"] == 10
+        mock_backfill.assert_called_once_with(
+            mode="missing-media",
+            limit=10,
+            category=None,
+            delay=0.0,
+        )
