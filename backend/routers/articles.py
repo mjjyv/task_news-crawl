@@ -45,6 +45,10 @@ def list_articles(
         ge=0,
         description="Lọc bài viết có số lượt bình luận tối thiểu (phục vụ lọc bài báo hot)",
     ),
+    post_type: Optional[str] = Query(
+        None,
+        description="Lọc theo định dạng bài: 'text', 'photo', 'infographic', 'video'",
+    ),
     service: ArticleService = Depends(get_article_service),
 ) -> PaginatedResponse[ArticleSummary]:
     """
@@ -55,12 +59,14 @@ def list_articles(
     - **from_date** / **to_date**: Khoảng thời gian xuất bản.
     - **sort** / **order**: Sắp xếp: 'latest' (mới nhất), 'hot' (nhiều bình luận nhất), 'oldest' (cũ nhất).
     - **min_comments**: Lọc bài viết có tối thiểu N lượt bình luận (bài hot).
+    - **post_type**: Lọc bài viết theo định dạng ('text', 'photo', 'infographic', 'video').
     """
     return service.get_articles(
         category_slug=category,
         from_date=from_date,
         to_date=to_date,
         min_comments=min_comments,
+        post_type=post_type,
         page=page,
         page_size=page_size,
         order=order,

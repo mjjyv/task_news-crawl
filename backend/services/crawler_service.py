@@ -64,6 +64,7 @@ class CrawlerService:
             total_categories=stats["total_categories"],
             total_articles=stats["total_articles"],
             total_media=stats["total_media"],
+            total_comments=stats.get("total_comments", 0),
             seen_ids_count=seen_count,
             latest_logs=logs,
         )
@@ -86,3 +87,28 @@ class CrawlerService:
             logger.info("Background crawl task completed for %s", target)
         except Exception as exc:
             logger.error("Background crawl task failed for %s: %s", target, exc)
+
+    @staticmethod
+    def execute_backfill_task(
+        mode: str = "missing-media",
+        limit: int = 50,
+        category: Optional[str] = None,
+        delay: float = 0.5,
+    ) -> None:
+        """Run backfill pipeline asynchronously in background task."""
+        from crawler.pipeline.article_backfill import ArticleBackfillPipeline
+
+        logger.info("Executing background backfill task: mode=%s, limit=%d", mode, limit)
+        pipeline = ArticleBackfillPipeline()
+        try:
+            if mode == "missing-media":
+                pipeline.backfill_missing_media(limit=limit, delay=delay)
+            elif mode == "rich-posts":
+                pipeline.backfill_rich_posts(limit=limit, delay=delay)
+            elif mode == "comments":
+                pipeline.backfill_comments(limit=limit, delay=delay)
+            elif mode == "all":
+                pipeline.backfill_all(limit=limit, delay=delay)
+            logger.info("Background backfill task completed for mode=%s", mode)
+        except Exception as exc:
+            logger.error("Background backfill task failed for mode=%s: %s", mode, exc)

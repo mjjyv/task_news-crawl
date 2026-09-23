@@ -4,6 +4,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 
 from backend.dependencies import get_crawler_service
 from backend.schemas.crawler import (
+    BackfillTriggerRequest,
+    BackfillTriggerResponse,
     CrawlerHealthResponse,
     CrawlTriggerRequest,
     CrawlTriggerResponse,
@@ -63,4 +65,38 @@ def trigger_crawl_task(
         message=f"Tác vụ cào tin {payload.type} cho mục '{payload.target}' đã được xếp lịch chạy nền thành công.",
         task_type=payload.type,
         target=payload.target,
+    )
+
+
+@router.post(
+    "/backfill",
+    response_model=BackfillTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Kích hoạt tác vụ cập nhật bổ sung bài cũ chạy ngầm (Backfill Background Task)",
+)
+def trigger_backfill_task(
+    payload: BackfillTriggerRequest,
+    background_tasks: BackgroundTasks,
+) -> BackfillTriggerResponse:
+    """
+    Kích hoạt tiến trình cập nhật dữ liệu bổ sung chạy ngầm trong nền:
+
+    - **mode**: `missing-media` (bổ sung ảnh thiếu), `rich-posts` (cập nhật slideshow & post_type), `comments` (bổ sung bình luận), `all` (toàn bộ).
+    - **limit**: Số lượng bài viết tối đa cần quét (1 đến 500).
+    - **category**: Slug chuyên mục cần lọc (tùy chọn).
+    - **delay**: Thời gian chờ giữa các bài viết (giây).
+    """
+    background_tasks.add_task(
+        CrawlerService.execute_backfill_task,
+        mode=payload.mode,
+        limit=payload.limit,
+        category=payload.category,
+        delay=payload.delay,
+    )
+
+    return BackfillTriggerResponse(
+        status="accepted",
+        message=f"Tác vụ backfill chế độ '{payload.mode}' (tối đa {payload.limit} bài) đã được xếp lịch chạy nền.",
+        mode=payload.mode,
+        limit=payload.limit,
     )

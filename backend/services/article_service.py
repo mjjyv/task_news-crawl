@@ -31,12 +31,13 @@ class ArticleService:
         from_date: Optional[datetime] = None,
         to_date: Optional[datetime] = None,
         min_comments: Optional[int] = None,
+        post_type: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
         order: str = "desc",
         sort: str = "latest",
     ) -> PaginatedResponse[ArticleSummary]:
-        """Fetch paginated articles with optional category, date range, and hotness filters."""
+        """Fetch paginated articles with optional category, date range, post_type, and hotness filters."""
         page = max(1, page)
         page_size = min(max(1, page_size), 100)
 
@@ -75,7 +76,12 @@ class ArticleService:
             stmt = stmt.where(Article.comment_count >= min_comments)
             count_stmt = count_stmt.where(Article.comment_count >= min_comments)
 
-        # 4. Total count
+        # 4. Filter by post_type ('text', 'photo', 'infographic', 'video')
+        if post_type:
+            stmt = stmt.where(Article.post_type == post_type)
+            count_stmt = count_stmt.where(Article.post_type == post_type)
+
+        # 5. Total count
         total = self.session.execute(count_stmt).scalar() or 0
         total_pages = math.ceil(total / page_size) if total > 0 else 0
 

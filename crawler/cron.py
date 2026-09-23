@@ -299,8 +299,19 @@ def run_sunday_maintenance(comment_sync_limit: int = 500, proxy_url: Optional[st
 
     print(f"   -> Đã cập nhật số lượng bình luận cho {updated_count}/{total_articles} bài.")
 
-    # 2. SQLite VACUUM & ANALYZE
-    print("2. Đang tối ưu hóa lưu trữ SQLite (VACUUM & ANALYZE)...")
+    # 2. Backfill missing media & rich metadata
+    print("2. Đang quét và bổ sung media / rich metadata cho các bài viết cũ...")
+    try:
+        from crawler.pipeline.article_backfill import ArticleBackfillPipeline
+
+        bf_pipeline = ArticleBackfillPipeline(proxy_url=proxy_url)
+        bf_res = bf_pipeline.backfill_missing_media(limit=50, delay=0.2)
+        print(f"   -> Đã bổ sung media cho {bf_res['updated']} bài viết thiếu ảnh.")
+    except Exception as exc:
+        print(f"   -> Lỗi khi chạy backfill bảo trì: {exc}")
+
+    # 3. SQLite VACUUM & ANALYZE
+    print("3. Đang tối ưu hóa lưu trữ SQLite (VACUUM & ANALYZE)...")
     try:
         with get_db_session() as session:
             session.execute(text("VACUUM"))

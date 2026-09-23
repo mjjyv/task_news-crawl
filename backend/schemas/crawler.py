@@ -24,6 +24,7 @@ class CrawlerHealthResponse(BaseModel):
     total_categories: int
     total_articles: int
     total_media: int
+    total_comments: int = 0
     seen_ids_count: int
     latest_logs: List[CrawlLogItem] = Field(default_factory=list)
 
@@ -40,3 +41,19 @@ class CrawlTriggerResponse(BaseModel):
     message: str
     task_type: str
     target: str
+
+
+class BackfillTriggerRequest(BaseModel):
+    mode: Literal["missing-media", "rich-posts", "comments", "all"] = Field(
+        default="missing-media", description="Chế độ quét bài: missing-media, rich-posts, comments, all"
+    )
+    limit: int = Field(default=50, ge=1, le=500, description="Số lượng bài tối đa cần backfill")
+    category: Optional[str] = Field(default=None, description="Lọc theo slug chuyên mục cụ thể")
+    delay: float = Field(default=0.5, ge=0.0, le=5.0, description="Thời gian chờ giữa các bài viết (giây)")
+
+
+class BackfillTriggerResponse(BaseModel):
+    status: str = "accepted"
+    message: str
+    mode: str
+    limit: int

@@ -7,16 +7,18 @@
 ## Mục Lục
 1. [Kiến Trúc Hệ Thống](#kiến-trúc-hệ-thống)
 2. [Cấu Trúc Trang & Quy Tắc Phân Trang VnExpress](#cấu-trúc-trang--quy-tắc-phân-trang-vnexpress)
-3. [Cơ Chế Bóc Tách Lượt Bình Luận (Comment Extraction)](#cơ-chế-bóc-tách-lượt-bình-luận-comment-extraction)
+3. [Cơ Chế Bóc Tách Lượt Bình Luận & Nội Dung Bình Luận](#cơ-chế-bóc-tách-lượt-bình-luận-comment-extraction)
 4. [Khử Trùng Lặp Thông Minh (Deduplication)](#khử-trùng-lặp-thông-minh-deduplication)
 5. [Cài Đặt & Khởi Chạy](#cài-đặt--khởi-chạy)
 6. [Bộ Lệnh CLI Hoàn Chỉnh](#bộ-lệnh-cli-hoàn-chỉnh)
 7. [Bộ Lệnh Minh Họa Cào Đủ Cho "Khoa Học Công Nghệ"](#bộ-lệnh-minh-họa-cào-đủ-cho-khoa-học-công-nghệ)
-8. [Hệ Thống Cronjob Phân Bổ Hằng Tuần & Script Cronjob.sh (122 Danh Mục)](#hệ-thống-cronjob-phân-bổ-hằng-tuần--script-cronjobsh-122-danh-mục)
-9. [Cấu Hình & Sử Dụng Proxy Chống Chặn IP (HTTP / HTTPS / SOCKS5)](#cấu-hình--sử-dụng-proxy-chống-chặn-ip-http--https--socks5)
-10. [Chiến Lược Cào Tin Khuyến Nghị (Best Practices)](#chiến-lược-cào-tin-khuyến-nghị-best-practices)
-11. [Bộ Lọc & Tìm Kiếm Tiếng Việt Có Dấu / Không Dấu](#bộ-lọc--tìm-kiếm-tiếng-việt-có-dấu--không-dấu)
-12. [Kiểm Thử (Testing) & Khôi Phục Dữ Liệu](#kiểm-thử-testing--khôi-phục-dữ-liệu)
+8. [Dịch Vụ Backfill & Làm Giàu Dữ Liệu Bài Cũ (Backfill Engine)](#dịch-vụ-backfill--làm-giàu-dữ-liệu-bài-cũ-backfill-engine)
+9. [Cơ Chế Phân Trang Động (Dynamic AJAX & Standard Pagination)](#cơ-chế-phân-trang-động-dynamic-ajax--standard-pagination)
+10. [Hệ Thống Cronjob Phân Bổ Hằng Tuần & Script Cronjob.sh (122 Danh Mục)](#hệ-thống-cronjob-phân-bổ-hằng-tuần--script-cronjobsh-122-danh-mục)
+11. [Cấu Hình & Sử Dụng Proxy Chống Chặn IP (HTTP / HTTPS / SOCKS5)](#cấu-hình--sử-dụng-proxy-chống-chặn-ip-http--https--socks5)
+12. [Chiến Lược Cào Tin Khuyến Nghị (Best Practices)](#chiến-lược-cào-tin-khuyến-nghị-best-practices)
+13. [Bộ Lọc & Tìm Kiếm Tiếng Việt Có Dấu / Không Dấu](#bộ-lọc--tìm-kiếm-tiếng-việt-có-dấu--không-dấu)
+14. [Kiểm Thử (Testing) & Khôi Phục Dữ Liệu](#kiểm-thử-testing--khôi-phục-dữ-liệu)
 
 ---
 
@@ -198,6 +200,7 @@ Hệ thống cung cấp CLI thông qua module `crawler.cli`:
 | `crawl-rss [--topic <name>] [--max-articles N] [--proxy URL]` | Cào tin nhanh nhất từ luồng RSS của VnExpress qua Proxy. |
 | `crawl-article <url> [--proxy URL]` | Cào chi tiết một bài viết cụ thể qua URL. |
 | `update-comments [--limit N] [--proxy URL]` | Đồng bộ số lượt bình luận trực tiếp từ VnExpress SaaS Comment API. |
+| `backfill [--mode M] [--limit N] [--delay S] [--category C] [--id ID] [--proxy URL]` | Quét và cập nhật làm giàu dữ liệu cho bài viết cũ (ảnh thiếu, slideshow nét cao, comments, bài liên quan). |
 | `cron-run [--mode M] [--day D] [--slot S] [--proxy URL]` | Thực thi lịch cào định kỳ phân bổ theo ngày/khung giờ. |
 | `stats` | Hiển thị bảng thống kê tổng quan (danh mục, bài viết, media, log cào gần nhất). |
 | *Tùy chọn chung:* `--proxy, -p <url>` | Định tuyến toàn bộ kết nối qua HTTP/HTTPS hoặc SOCKS5 Proxy. |
@@ -290,6 +293,47 @@ Nếu muốn kiểm soát tốc độ hoặc ưu tiên cào các chủ đề "ho
 # Xem thống kê tổng số lượng bài viết và media đã thu thập
 ./.venv/bin/python -m crawler.cli stats
 ```
+
+---
+
+## Dịch Vụ Backfill & Làm Giàu Dữ Liệu Bài Cũ (Backfill Engine)
+
+Khi cơ sở dữ liệu đã có sẵn hàng ngàn bài viết từ các đợt cào trước đây, lệnh `backfill` cho phép quét lại để làm giàu thông tin bài viết mà **không làm mất bất kỳ dữ liệu nào**:
+- **Bổ sung ảnh nét cao**: Trích xuất toàn bộ slide show ảnh nét cao (1200px+) kèm caption đầy đủ cho các bài phóng sự ảnh, infographics.
+- **Phân loại định dạng bài (`post_type`)**: Tự động chuyển đổi thành `"photo"`, `"infographic"`, `"video"`, `"text"`.
+- **Trích xuất bình luận (`comments`)**: Lưu trữ tác giả, avatar, nội dung, số lượt thích, số phản hồi con.
+- **Lưu vết tin liên quan (`related_article_ids`)**: Bóc tách danh sách ID bài liên quan từ VnExpress.
+
+### Cú pháp sử dụng:
+```bash
+# 1. Bổ sung media cho các bài viết đang thiếu ảnh (ưu tiên quét các bài chưa có ảnh trong DB)
+./.venv/bin/python -m crawler.cli backfill --mode missing-media --limit 50 --delay 0.5
+
+# 2. Cập nhật các bài viết dạng phóng sự ảnh / infographics (slideshows & captions)
+./.venv/bin/python -m crawler.cli backfill --mode rich-posts --limit 50 --delay 0.5
+
+# 3. Quét và trích xuất bình luận cho các bài viết có tương tác cao
+./.venv/bin/python -m crawler.cli backfill --mode comments --limit 50 --delay 0.5
+
+# 4. Cập nhật cụ thể một bài viết theo ID
+./.venv/bin/python -m crawler.cli backfill --id 5122237
+
+# 5. Kích hoạt backfill qua REST API Backend (Background Task)
+curl -X POST "http://localhost:8000/api/v1/crawler/backfill" \
+     -H "Content-Type: application/json" \
+     -d '{"mode": "missing-media", "limit": 50, "delay": 0.5}'
+```
+
+---
+
+## Cơ Chế Phân Trang Động (Dynamic AJAX & Standard Pagination)
+
+Hệ thống crawler xử lý cả hai cơ chế phân trang của VnExpress:
+1. **Phân trang chuẩn (`-p{page}`)**: Áp dụng cho các chuyên mục tĩnh (`/thoi-su-p2`, `/kinh-doanh-p3`...).
+2. **Phân trang động AJAX (`/ajax/...`)**: Các chuyên mục như **Góc nhìn** (`/goc-nhin`), chuyên mục con Góc nhìn sử dụng container AJAX (`<div id="paging" data-url="/ajax/goc-nhin" data-category="1003450"...>`).
+   - Khi phát hiện thẻ AJAX trên trang 1, crawler tự động chuyển sang gọi endpoint AJAX:
+     `https://vnexpress.net/ajax/goc-nhin?category_id=1003450&page={N}&exclude=3`
+   - Nhờ đó, crawler không bao giờ bị dừng sớm hay bị chuyển hướng về trang 1, bảo đảm cào trọn vẹn 100% số bài viết.
 
 ---
 
@@ -472,15 +516,26 @@ Hệ thống xây dựng giải pháp tìm kiếm toàn diện cho tiếng Việ
 
 ## 12. Kiểm Thử (Testing) & Khôi Phục Dữ Liệu
 
-### 1. Chạy toàn bộ Test Suite
+### 1. Chạy toàn bộ Test Suite (77 Tests - 100% Passed)
 ```bash
 ./.venv/bin/pytest tests/ -v
 ```
-Toàn bộ **58 tests** (API, Parser, Storage, Deduplicator, Search, Proxy Support) đều được tự động hóa.
+Toàn bộ **77 tests** trên **17 test suites độc lập** được chuẩn hóa theo ngữ cảnh nghiệp vụ (Domain-Driven Naming):
+- `tests/test_article_backfill.py`: Kiểm thử dịch vụ backfill ảnh thiếu, cập nhật post_type, làm giàu caption và comments.
+- `tests/test_article_filtering_and_stats.py`: Kiểm thử API lọc bài theo `post_type`, dashboard health stats kèm số bình luận và trigger backfill.
+- `tests/test_listing_pagination.py`: Kiểm thử phân trang tĩnh `-p{N}`, endpoint AJAX và tự động chuyển đổi phân trang động.
+- `tests/test_comments_and_related_articles.py`: Kiểm thử lưu trữ bảng `comments`, liên kết `related_article_ids` và cascade delete.
+- `tests/test_rich_media_and_comments_parser.py`: Kiểm thử trích xuất slide show ảnh nét cao 1200px+, caption phong phú và bình luận người dùng.
+- `tests/test_api_articles.py`, `tests/test_api_categories.py`, `tests/test_api_crawler.py`, `tests/test_api_search.py`: Kiểm thử toàn bộ REST API endpoints.
+- `tests/test_cron_scheduler.py`: Kiểm thử lịch trình phân bổ 122 danh mục và tác vụ bảo trì Chủ nhật.
+- `tests/test_proxy_support.py`: Kiểm thử định tuyến kết nối qua HTTP/HTTPS và SOCKS5 proxy.
+- `tests/test_deduplication.py`: Kiểm thử lọc trùng ID siêu tốc (Redis & In-memory).
+
+*(Ghi chú: Thư mục `docs/html-templates02` đóng vai trò là tài liệu tham khảo cấu trúc trang HTML thực tế của VnExpress để xây dựng fixtures, không phải là module phụ thuộc trong runtime của hệ thống).*
 
 ### 2. Khôi phục dữ liệu nếu lỡ xóa file DB (`news.db`)
 Việc xóa file `news.db` **hoàn toàn an toàn và khôi phục cực kỳ dễ dàng**:
-1. Khởi động lại uvicorn (hoặc chạy bất kỳ lệnh CLI nào), database và các bảng sẽ tự động được tạo mới 100%.
+1. Khởi động lại uvicorn (hoặc chạy bất kỳ lệnh CLI nào), database và các bảng (kèm cơ chế migration tự động) sẽ tự động được khởi tạo 100%.
 2. Chạy lệnh:
    ```bash
    ./.venv/bin/python -m crawler.cli sync-categories
