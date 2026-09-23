@@ -12,9 +12,11 @@
 5. [Cài Đặt & Khởi Chạy](#cài-đặt--khởi-chạy)
 6. [Bộ Lệnh CLI Hoàn Chỉnh](#bộ-lệnh-cli-hoàn-chỉnh)
 7. [Bộ Lệnh Minh Họa Cào Đủ Cho "Khoa Học Công Nghệ"](#bộ-lệnh-minh-họa-cào-đủ-cho-khoa-học-công-nghệ)
-8. [Chiến Lược Cào Tin Khuyến Nghị (Best Practices)](#chiến-lược-cào-tin-khuyến-nghị-best-practices)
-9. [Bộ Lọc & Tìm Kiếm Tiếng Việt Có Dấu / Không Dấu](#bộ-lọc--tìm-kiếm-tiếng-việt-có-dấu--không-dấu)
-10. [Kiểm Thử (Testing) & Khôi Phục Dữ Liệu](#kiểm-thử-testing--khôi-phục-dữ-liệu)
+8. [Hệ Thống Cronjob Phân Bổ Hằng Tuần & Script Cronjob.sh (122 Danh Mục)](#hệ-thống-cronjob-phân-bổ-hằng-tuần--script-cronjobsh-122-danh-mục)
+9. [Cấu Hình & Sử Dụng Proxy Chống Chặn IP (HTTP / HTTPS / SOCKS5)](#cấu-hình--sử-dụng-proxy-chống-chặn-ip-http--https--socks5)
+10. [Chiến Lược Cào Tin Khuyến Nghị (Best Practices)](#chiến-lược-cào-tin-khuyến-nghị-best-practices)
+11. [Bộ Lọc & Tìm Kiếm Tiếng Việt Có Dấu / Không Dấu](#bộ-lọc--tìm-kiếm-tiếng-việt-có-dấu--không-dấu)
+12. [Kiểm Thử (Testing) & Khôi Phục Dữ Liệu](#kiểm-thử-testing--khôi-phục-dữ-liệu)
 
 ---
 
@@ -192,11 +194,14 @@ Hệ thống cung cấp CLI thông qua module `crawler.cli`:
 | `init-db` | Khởi tạo cấu trúc bảng cơ sở dữ liệu SQLite (`news.db`). |
 | `sync-categories` | Thu thập và đồng bộ toàn bộ cây danh mục cha và danh mục con từ VnExpress. |
 | `list-categories` | In ra toàn bộ cây danh mục hiện có trong cơ sở dữ liệu. |
-| `crawl-category <slug> [--pages N] [-r]` | Cào tin từ một chuyên mục (hỗ trợ phân trang và cờ đệ quy `-r`). |
-| `crawl-rss [--topic <name>] [--max-articles N]` | Cào tin nhanh nhất từ luồng RSS của VnExpress. |
-| `crawl-article <url>` | Cào chi tiết một bài viết cụ thể qua URL. |
-| `update-comments [--limit N]` | Đồng bộ số lượt bình luận trực tiếp từ VnExpress SaaS Comment API. |
+| `crawl-category <slug> [--pages N] [-r] [--proxy URL]` | Cào tin từ chuyên mục (hỗ trợ phân trang, đệ quy mục con `-r`, và Proxy). |
+| `crawl-rss [--topic <name>] [--max-articles N] [--proxy URL]` | Cào tin nhanh nhất từ luồng RSS của VnExpress qua Proxy. |
+| `crawl-article <url> [--proxy URL]` | Cào chi tiết một bài viết cụ thể qua URL. |
+| `update-comments [--limit N] [--proxy URL]` | Đồng bộ số lượt bình luận trực tiếp từ VnExpress SaaS Comment API. |
+| `cron-run [--mode M] [--day D] [--slot S] [--proxy URL]` | Thực thi lịch cào định kỳ phân bổ theo ngày/khung giờ. |
 | `stats` | Hiển thị bảng thống kê tổng quan (danh mục, bài viết, media, log cào gần nhất). |
+| *Tùy chọn chung:* `--proxy, -p <url>` | Định tuyến toàn bộ kết nối qua HTTP/HTTPS hoặc SOCKS5 Proxy. |
+| *Tùy chọn chung:* `-v, --verbose` | Bật chế độ ghi nhật ký chi tiết (DEBUG). |
 
 ---
 
@@ -288,7 +293,149 @@ Nếu muốn kiểm soát tốc độ hoặc ưu tiên cào các chủ đề "ho
 
 ---
 
-## Chiến Lược Cào Tin Khuyến Nghị (Best Practices)
+## Hệ Thống Cronjob Phân Bổ Hằng Tuần & Script Cronjob.sh (122 Danh Mục)
+
+Hệ thống cung cấp giải pháp cào tin định kỳ tự động hóa 100%, bảo đảm lấy đủ:
+- **100 bài mới nhất toàn trang** (Breaking News qua RSS tổng hợp).
+- **100 bài mới nhất ở mỗi mục cha (17 mục)** và **100 bài mới nhất của từng mục con (105 mục con)** $\rightarrow$ **Tổng cộng 122 danh mục**.
+- **Chia đều các khung giờ trong ngày** (sáng sớm 02:00, trưa 13:00, tối 20:00) nhằm giảm tải, không gây nghẽn băng thông và loại trừ rủi ro bị chặn IP.
+
+### 1. Bảng Phân Bổ 122 Danh Mục & Các Khung Giờ Trong Tuần
+
+| Thứ | Khung Giờ | Cụm Chuyên Mục | Chi Tiết Danh Mục | Số Danh Mục |
+| :--- | :---: | :--- | :--- | :---: |
+| **Thứ 2** | `02:00` (Slot 1)<br>`13:00` (Slot 2) | Thời sự & Quốc tế | • `thoi-su` (1 cha + 6 con: Chính trị, Dân sinh, Lao động, Giao thông...)<br>• `the-gioi` (1 cha + 6 con: Tư liệu, Phân tích, Người Việt năm châu...) | **14** |
+| **Thứ 3** | `02:00` (Slot 1)<br>`13:00` (Slot 2) | Kinh tế & Bất động sản | • `kinh-doanh` (1 cha + 9 con: Quốc tế, Doanh nghiệp, Chứng khoán, Ebank...)<br>• `bat-dong-san` (1 cha + 6 con: Chính sách, Thị trường, Dự án...) | **17** |
+| **Thứ 4** | `02:00` (Slot 1)<br>`13:00` (Slot 2) | Khoa học Công nghệ & Xe | • `khoa-hoc-cong-nghe` (1 cha + 10 con: Chuyển đổi số, AI, Thiết bị...)<br>• `oto-xe-may` (1 cha + 8 con: Thị trường, Xe điện, Diễn đàn...) | **20** |
+| **Thứ 5** | `02:00` (Slot 1)<br>`13:00` (Slot 2)<br>`20:00` (Slot 3) | Thể thao, Giải trí & Thư giãn | • `the-thao` (1 cha + 8 con: Bóng đá, Tennis, Marathon...)<br>• `giai-tri` (1 cha + 8 con: Giới sao, Phim, Nhạc, Thời trang...)<br>• `thu-gian` (1 cha + 6 con: Cười, Đố vui, Chuyện lạ...) | **25** |
+| **Thứ 6** | `02:00` (Slot 1)<br>`13:00` (Slot 2)<br>`20:00` (Slot 3) | Sức khỏe, Đời sống & Du lịch | • `suc-khoe` (1 cha + 5 con: Tin tức, Dinh dưỡng, Khỏe đẹp...)<br>• `doi-song` (1 cha + 5 con: Tổ ấm, Bài học sống, Nhà...)<br>• `du-lich` (1 cha + 7 con: Điểm đến, Ẩm thực, Dấu chân...) | **20** |
+| **Thứ 7** | `02:00` (Slot 1)<br>`13:00` (Slot 2)<br>`20:00` (Slot 3) | Giáo dục, Pháp luật, Xã hội | • `giao-duc` (1 cha + 8 con: Tuyển sinh, Du học, Học tiếng Anh...)<br>• `phap-luat` + `goc-nhin` (2 cha + 10 con: Hồ sơ vụ án, Bình luận...)<br>• `y-kien` + `tam-su` (2 cha + 3 con: Đời sống, Góc nhìn...) | **26** |
+| **Chủ nhật**| `03:00` (Slot 1)<br>`14:00` (Slot 2) | Bảo trì & Tối ưu hóa | • Đồng bộ lượt bình luận thời gian thực cho 500 bài viết mới nhất<br>• Tối ưu hóa Database (`SQLite VACUUM & ANALYZE`) | *Bảo trì* |
+| **TẤT CẢ** | `00` phút mỗi giờ | **100 tin mới nhất (RSS)** | Quét liên tục 13 kênh RSS chính để cập nhật tin nóng tức thì | **24/7** |
+
+---
+
+### 2. Quản Trị Trực Tiếp Qua File `Cronjob.sh`
+
+Tất cả tác vụ và lịch trình đã được tích hợp trọn vẹn trong một tệp duy nhất: `./Cronjob.sh`.
+
+#### Cú pháp các lệnh:
+
+```bash
+# 1. Xem bảng lịch trình phân bổ 122 danh mục
+./Cronjob.sh schedule
+
+# 2. Cào ngay 100 tin mới nhất toàn trang (Breaking RSS)
+./Cronjob.sh hourly
+
+# 3. Kích hoạt cào danh mục theo ngày hiện tại hoặc chỉ định ngày/khung giờ
+./Cronjob.sh daily today               # Chạy toàn bộ các slot của ngày hôm nay
+./Cronjob.sh daily mon slot1           # Chạy Slot 1 Thứ 2 (Thời sự: 1 cha + 6 con)
+./Cronjob.sh daily wed slot2           # Chạy Slot 2 Thứ 4 (Xe: 1 cha + 8 con)
+
+# 4. Chạy bảo trì (Đồng bộ bình luận và tối ưu database)
+./Cronjob.sh maintenance
+
+# 5. Chạy tuần tự toàn bộ 122 danh mục trong hệ thống
+./Cronjob.sh all
+
+# 6. Xem thống kê dữ liệu hiện tại
+./Cronjob.sh status
+```
+
+---
+
+### 3. Cài Đặt Crontab Tự Động Lên Hệ Điều Hành (Linux / macOS)
+
+Chỉ với một lệnh duy nhất, `./Cronjob.sh` sẽ tự động cấu hình lịch trình chạy ngầm vào crontab hệ điều hành của bạn:
+
+```bash
+# Cài đặt tự động vào crontab:
+./Cronjob.sh install
+
+# Kiểm tra crontab đã cài đặt:
+crontab -l
+
+# Xem nội dung cấu hình crontab mẫu:
+./Cronjob.sh crontab-show
+
+# Gỡ bỏ lịch trình khi không còn nhu cầu:
+./Cronjob.sh uninstall
+```
+
+Logs thực thi được tự động lưu lại tại thư mục `data/logs/`:
+- `data/logs/cron_hourly.log`: Log cào 100 tin mới mỗi giờ.
+- `data/logs/cron_daily.log`: Log cào danh mục theo khung giờ hàng ngày.
+- `data/logs/cron_maint.log`: Log bảo trì và tối ưu database Chủ nhật.
+
+---
+
+## Cấu Hình & Sử Dụng Proxy Chống Chặn IP (HTTP / HTTPS / SOCKS5)
+
+Hệ thống hỗ trợ toàn diện các giao thức Proxy (**HTTP, HTTPS, SOCKS5**) cho cả **quy trình thủ công** (CLI cào từng bài, từng mục) lẫn **quy trình tự động** (Cronjob theo tuần, Cronjob.sh, FastAPI Background Tasks).
+
+### 1. Các giải pháp Proxy khuyến nghị
+
+| Giải pháp | Giao thức & Cấu hình mẫu | Ưu điểm & Ứng dụng |
+| :--- | :--- | :--- |
+| **Cloudflare WARP** | `socks5://127.0.0.1:40000` | **Khuyên dùng nhất**: Miễn phí 100%, IP Cloudflare sạch, tốc độ cao, không bị chặn rate-limit. |
+| **Tor Proxy** | `socks5://127.0.0.1:9050` | Đổi IP linh hoạt bằng `systemctl reload tor`. Miễn phí nhưng tốc độ có thể chậm hơn. |
+| **Residential Rotating Proxy** | `http://user:pass@proxy.provider.com:8080` | Xoay vòng IP người dùng dân cư tự động sau mỗi request, thích hợp cho quy mô lớn. |
+| **4G/5G USB Tethering** | *Không cần cấu hình trong code* | Cắm cáp điện thoại vào PC, bật USB Tethering. Bật/tắt Airplane mode để đổi IP ngay lập tức. |
+
+> [!NOTE]
+> Môi trường ảo của dự án đã cài đặt sẵn thư viện `socksio>=1.0.0` để hỗ trợ giao thức `socks5://` mượt mà với `httpx`.
+
+---
+
+### 2. Sử dụng Proxy trong lệnh thủ công (CLI)
+
+Bạn có thể truyền cờ `--proxy` (hoặc `-p`) vào bất kỳ lệnh cào dữ liệu nào:
+
+```bash
+# 1. Cào một chuyên mục qua Cloudflare WARP (SOCKS5):
+./.venv/bin/python -m crawler.cli crawl-category khoa-hoc-cong-nghe --pages 5 --proxy "socks5://127.0.0.1:40000"
+
+# 2. Cào bài viết đơn lẻ qua HTTP Proxy có mật khẩu:
+./.venv/bin/python -m crawler.cli crawl-article "https://vnexpress.net/..." --proxy "http://username:password@ip_proxy:port"
+
+# 3. Cào RSS tin nóng qua Tor Proxy:
+./.venv/bin/python -m crawler.cli crawl-rss --topic tin-moi-nhat --proxy "socks5://127.0.0.1:9050"
+
+# 4. Chạy lịch trình định kỳ có kèm Proxy:
+./.venv/bin/python -m crawler.cli cron-run --mode daily --day wed --slot slot1 --proxy "socks5://127.0.0.1:40000"
+```
+*(Lưu ý: Mật khẩu trong URL Proxy sẽ được tự động làm mờ (`***`) khi ghi vào log để đảm bảo an toàn bảo mật).*
+
+---
+
+### 3. Cấu hình tự động cho Cronjob & Backend
+
+#### Cách 1: Thiết lập qua file `.env`
+Khai báo biến `PROXY_URL` trong file `.env` ở thư mục gốc:
+```env
+PROXY_URL=socks5://127.0.0.1:40000
+# Hoặc:
+# PROXY_URL=http://username:password@ip_proxy:port
+```
+Khi đó, toàn bộ tác vụ nền (FastAPI Backend, Background Tasks, Cronjob) sẽ tự động nạp cấu hình Proxy này.
+
+#### Cách 2: Thiết lập qua biến môi trường khi chạy `Cronjob.sh`
+```bash
+# Chạy cào tin mỗi giờ qua Proxy:
+PROXY_URL="socks5://127.0.0.1:40000" ./Cronjob.sh hourly
+
+# Chạy cào danh mục hôm nay qua Proxy:
+PROXY_URL="socks5://127.0.0.1:40000" ./Cronjob.sh daily today
+
+# Chạy bảo trì database & đồng bộ comment qua Proxy:
+PROXY_URL="socks5://127.0.0.1:40000" ./Cronjob.sh maintenance
+```
+Khi cấu hình trong Crontab hệ điều hành (`./Cronjob.sh install`), script sẽ tự động kiểm tra `PROXY_URL` trong `.env` để bảo đảm các tiến trình chạy ngầm ban đêm đều đi qua Proxy sạch.
+
+---
+
+## 10. Chiến Lược Cào Tin Khuyến Nghị (Best Practices)
 
 ### Có nên cào hết vài nghìn tin ngay lập tức không?
 > **Khuyến nghị: KHÔNG NÊN cào dồn dập hàng nghìn bài trong một lần chạy duy nhất.**
@@ -307,7 +454,7 @@ Nếu muốn kiểm soát tốc độ hoặc ưu tiên cào các chủ đề "ho
 
 ---
 
-## Bộ Lọc & Tìm Kiếm Tiếng Việt Có Dấu / Không Dấu
+## 11. Bộ Lọc & Tìm Kiếm Tiếng Việt Có Dấu / Không Dấu
 
 Hệ thống xây dựng giải pháp tìm kiếm toàn diện cho tiếng Việt trên SQLite:
 
@@ -323,13 +470,13 @@ Hệ thống xây dựng giải pháp tìm kiếm toàn diện cho tiếng Việ
 
 ---
 
-## Kiểm Thử (Testing) & Khôi Phục Dữ Liệu
+## 12. Kiểm Thử (Testing) & Khôi Phục Dữ Liệu
 
 ### 1. Chạy toàn bộ Test Suite
 ```bash
 ./.venv/bin/pytest tests/ -v
 ```
-Toàn bộ 46 tests (API, Parser, Storage, Deduplicator, Search) đều được tự động hóa.
+Toàn bộ **58 tests** (API, Parser, Storage, Deduplicator, Search, Proxy Support) đều được tự động hóa.
 
 ### 2. Khôi phục dữ liệu nếu lỡ xóa file DB (`news.db`)
 Việc xóa file `news.db` **hoàn toàn an toàn và khôi phục cực kỳ dễ dàng**:
@@ -346,3 +493,4 @@ Việc xóa file `news.db` **hoàn toàn an toàn và khôi phục cực kỳ d�
 
 ## Giấy Phép & Bản Quyền
 Dự án được xây dựng cho mục đích nghiên cứu, học tập và trải nghiệm đọc tin tối giản không quảng cáo. Toàn bộ bản quyền bài viết và hình ảnh thuộc về [Báo điện tử VnExpress](https://vnexpress.net).
+

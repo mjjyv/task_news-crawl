@@ -24,8 +24,9 @@ class ArticlePipeline:
         self,
         http_client: Optional[HttpClient] = None,
         deduplicator: Optional[Deduplicator] = None,
+        proxy_url: Optional[str] = None,
     ):
-        self.http_client = http_client or HttpClient()
+        self.http_client = http_client or HttpClient(proxy_url=proxy_url)
         self.deduplicator = deduplicator or get_deduplicator()
         self.listing_parser = ListingParser(base_url=settings.base_url)
         self.article_parser = ArticleParser(base_url=settings.base_url)

@@ -18,16 +18,28 @@ class HttpClient:
 
     def __init__(
         self,
+        proxy_url: Optional[str] = None,
         min_delay: Optional[float] = None,
         max_delay: Optional[float] = None,
         timeout: Optional[float] = None,
         max_retries: Optional[int] = None,
     ):
+        self.proxy_url = proxy_url or settings.proxy_url
         self.min_delay = min_delay if min_delay is not None else settings.download_delay_min
         self.max_delay = max_delay if max_delay is not None else settings.download_delay_max
         self.timeout = timeout if timeout is not None else settings.request_timeout
         self.max_retries = max_retries if max_retries is not None else settings.max_retries
         self._last_request_time: float = 0.0
+
+        if self.proxy_url:
+            # Mask password if present in proxy_url for security in logs
+            safe_proxy = self.proxy_url
+            if "@" in safe_proxy:
+                proto, rest = safe_proxy.split("://", 1) if "://" in safe_proxy else ("", safe_proxy)
+                userpass, host = rest.split("@", 1)
+                user = userpass.split(":", 1)[0]
+                safe_proxy = f"{proto}://{user}:***@{host}" if proto else f"{user}:***@{host}"
+            logger.info("HttpClient configured with proxy: %s", safe_proxy)
 
         self._sync_client: Optional[httpx.Client] = None
         self._async_client: Optional[httpx.AsyncClient] = None
@@ -72,6 +84,7 @@ class HttpClient:
             except ImportError:
                 has_h2 = False
             self._sync_client = httpx.Client(
+                proxy=self.proxy_url,
                 timeout=self.timeout,
                 follow_redirects=True,
                 http2=has_h2,
@@ -86,6 +99,7 @@ class HttpClient:
             except ImportError:
                 has_h2 = False
             self._async_client = httpx.AsyncClient(
+                proxy=self.proxy_url,
                 timeout=self.timeout,
                 follow_redirects=True,
                 http2=has_h2,

@@ -51,7 +51,8 @@ def cmd_list_categories(args):
 
 def cmd_crawl_category(args):
     init_db()
-    pipeline = ArticlePipeline()
+    proxy_url = getattr(args, "proxy", None)
+    pipeline = ArticlePipeline(proxy_url=proxy_url)
     result = pipeline.crawl_category(
         category_slug=args.slug,
         max_pages=args.pages,
@@ -67,7 +68,8 @@ def cmd_crawl_category(args):
 
 def cmd_crawl_rss(args):
     init_db()
-    pipeline = ArticlePipeline()
+    proxy_url = getattr(args, "proxy", None)
+    pipeline = ArticlePipeline(proxy_url=proxy_url)
     result = pipeline.crawl_rss(
         topic=args.topic,
         max_articles=args.max_articles,
@@ -80,7 +82,8 @@ def cmd_crawl_rss(args):
 
 def cmd_crawl_article(args):
     init_db()
-    pipeline = ArticlePipeline()
+    proxy_url = getattr(args, "proxy", None)
+    pipeline = ArticlePipeline(proxy_url=proxy_url)
     parsed = pipeline.crawl_single_article(args.url)
     if parsed:
         print("\n--- THU THẬP BÀI VIẾT THÀNH CÔNG ---")
@@ -103,7 +106,8 @@ def cmd_update_comments(args):
     from sqlalchemy import select
     import concurrent.futures
 
-    pipeline = ArticlePipeline()
+    proxy_url = getattr(args, "proxy", None)
+    pipeline = ArticlePipeline(proxy_url=proxy_url)
     with get_db_session() as session:
         stmt = select(Article.id, Article.title, Article.comment_count).order_by(Article.published_at.desc().nulls_last())
         if args.limit and args.limit > 0:
@@ -165,27 +169,36 @@ def cmd_stats(args):
 
 
 def main():
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("-v", "--verbose", action="store_true", help="Bật log chi tiết (DEBUG)")
+    common_parser.add_argument(
+        "--proxy",
+        "-p",
+        default=None,
+        help="Địa chỉ Proxy (HTTP/HTTPS hoặc SOCKS5, vd: socks5://127.0.0.1:40000, http://user:pass@ip:port)",
+    )
+
     parser = argparse.ArgumentParser(
         description="VnExpress News Aggregator - Crawler Core CLI",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        parents=[common_parser],
     )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Bật log chi tiết (DEBUG)")
     subparsers = parser.add_subparsers(dest="command", help="Lệnh thực thi")
 
     # init-db
-    p_init = subparsers.add_parser("init-db", help="Khởi tạo cấu trúc bảng Database")
+    p_init = subparsers.add_parser("init-db", parents=[common_parser], help="Khởi tạo cấu trúc bảng Database")
     p_init.set_defaults(func=cmd_init_db)
 
     # sync-categories
-    p_sync = subparsers.add_parser("sync-categories", help="Đồng bộ toàn bộ danh mục cha và con từ VnExpress")
+    p_sync = subparsers.add_parser("sync-categories", parents=[common_parser], help="Đồng bộ toàn bộ danh mục cha và con từ VnExpress")
     p_sync.set_defaults(func=cmd_sync_categories)
 
     # list-categories
-    p_list_cat = subparsers.add_parser("list-categories", help="Xem cây danh mục hiện có")
+    p_list_cat = subparsers.add_parser("list-categories", parents=[common_parser], help="Xem cây danh mục hiện có")
     p_list_cat.set_defaults(func=cmd_list_categories)
 
     # crawl-category
-    p_cat = subparsers.add_parser("crawl-category", help="Crawl bài viết từ một chuyên mục")
+    p_cat = subparsers.add_parser("crawl-category", parents=[common_parser], help="Crawl bài viết từ một chuyên mục")
     p_cat.add_argument("slug", help="Slug chuyên mục (vd: khoa-hoc-cong-nghe, thoi-su, the-gioi)")
     p_cat.add_argument("--pages", type=int, default=1, help="Số lượng trang cần duyệt (1 đến 20)")
     p_cat.add_argument("--max-articles", type=int, default=None, help="Giới hạn tối đa số bài viết mới")
@@ -198,24 +211,48 @@ def main():
     p_cat.set_defaults(func=cmd_crawl_category)
 
     # crawl-rss
-    p_rss = subparsers.add_parser("crawl-rss", help="Cập nhật tin mới nhất qua RSS feed")
+    p_rss = subparsers.add_parser("crawl-rss", parents=[common_parser], help="Cập nhật tin mới nhất qua RSS feed")
     p_rss.add_argument("--topic", default="tin-moi-nhat", help="Topic RSS (vd: tin-moi-nhat, khoa-hoc-cong-nghe, thoi-su)")
     p_rss.add_argument("--max-articles", type=int, default=None, help="Giới hạn số bài viết mới")
     p_rss.set_defaults(func=cmd_crawl_rss)
 
     # crawl-article
-    p_art = subparsers.add_parser("crawl-article", help="Crawl chi tiết một bài viết cụ thể qua URL")
+    p_art = subparsers.add_parser("crawl-article", parents=[common_parser], help="Crawl chi tiết một bài viết cụ thể qua URL")
     p_art.add_argument("url", help="URL bài viết VnExpress (*-<id>.html)")
     p_art.set_defaults(func=cmd_crawl_article)
 
     # update-comments
-    p_ucmt = subparsers.add_parser("update-comments", help="Đồng bộ số lượng bình luận thời gian thực từ VnExpress")
+    p_ucmt = subparsers.add_parser("update-comments", parents=[common_parser], help="Đồng bộ số lượng bình luận thời gian thực từ VnExpress")
     p_ucmt.add_argument("--limit", type=int, default=50, help="Số lượng bài viết tối đa cần đồng bộ (mặc định 50)")
     p_ucmt.set_defaults(func=cmd_update_comments)
 
     # stats
-    p_stats = subparsers.add_parser("stats", help="Xem thống kê tổng quan dữ liệu đã thu thập")
+    p_stats = subparsers.add_parser("stats", parents=[common_parser], help="Xem thống kê tổng quan dữ liệu đã thu thập")
     p_stats.set_defaults(func=cmd_stats)
+
+    # cron-run
+    p_cron = subparsers.add_parser("cron-run", parents=[common_parser], help="Thực thi hoặc xem lịch trình Cronjob phân bổ hằng tuần")
+    p_cron.add_argument(
+        "--mode",
+        choices=["hourly", "daily", "all", "maintenance", "schedule"],
+        default="daily",
+        help="Chế độ chạy: hourly, daily, all, maintenance, schedule",
+    )
+    p_cron.add_argument(
+        "--day",
+        choices=["mon", "tue", "wed", "thu", "fri", "sat", "sun", "today"],
+        default="today",
+        help="Thứ trong tuần (dùng cho daily)",
+    )
+    p_cron.add_argument(
+        "--slot",
+        choices=["slot1", "slot2", "slot3"],
+        default=None,
+        help="Khung giờ trong ngày (slot1, slot2, slot3)",
+    )
+    p_cron.add_argument("--max-articles", type=int, default=100, help="Số bài viết mới tối đa / mục")
+    p_cron.add_argument("--pages", type=int, default=7, help="Số trang danh mục tối đa cần duyệt")
+    p_cron.set_defaults(func=lambda a: __import__("crawler.cron", fromlist=["main"]).main_cli(a))
 
     args = parser.parse_args()
     setup_logging(args.verbose)

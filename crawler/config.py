@@ -1,6 +1,6 @@
 """Application configuration using Pydantic Settings."""
 
-from typing import List
+from typing import List, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     request_timeout: float = Field(default=15.0, alias="REQUEST_TIMEOUT")
     max_retries: int = Field(default=3, alias="MAX_RETRIES")
     concurrent_requests: int = Field(default=5, alias="CONCURRENT_REQUESTS")
+
+    # Proxy configuration
+    proxy_url: Optional[str] = Field(default=None, alias="PROXY_URL")
 
     # Media settings
     save_media_local: bool = Field(default=False, alias="SAVE_MEDIA_LOCAL")
