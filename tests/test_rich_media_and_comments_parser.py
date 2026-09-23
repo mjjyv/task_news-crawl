@@ -1,4 +1,4 @@
-"""Unit tests for HTML templates 02 (Goc Nhin AJAX pagination, Infographics/Photo stories, Comments, and Related Articles)."""
+"""Unit tests for Rich Media, Comments, and Related Articles parser logic."""
 
 from pathlib import Path
 import pytest
@@ -6,7 +6,7 @@ import pytest
 from crawler.parsers.article import ArticleParser
 from crawler.parsers.listing import ListingParser
 
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "docs" / "html-templates02"
+SAMPLES_DIR = Path(__file__).resolve().parent.parent / "docs" / "html-templates02"
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def article_parser():
 
 def test_parse_goc_nhin_listing(listing_parser):
     """Test parsing Goc Nhin container: clean titles without nb-art, correct URLs, and AJAX paging."""
-    html_file = TEMPLATES_DIR / "goc-nhin_news-container.html"
+    html_file = SAMPLES_DIR / "goc-nhin_news-container.html"
     assert html_file.exists(), f"File not found: {html_file}"
 
     html_content = html_file.read_text(encoding="utf-8")
@@ -57,7 +57,7 @@ def test_parse_goc_nhin_listing(listing_parser):
 
 def test_parse_goc_nhin_subcat_listing(listing_parser):
     """Test parsing Goc Nhin subcategory container (Chinh tri - chinh sach)."""
-    html_file = TEMPLATES_DIR / "goc-nhin_chinh-tri-chinh-sach_news-container.html"
+    html_file = SAMPLES_DIR / "goc-nhin_chinh-tri-chinh-sach_news-container.html"
     assert html_file.exists()
 
     html_content = html_file.read_text(encoding="utf-8")
@@ -72,7 +72,7 @@ def test_parse_goc_nhin_subcat_listing(listing_parser):
 
 def test_parse_infographic_and_photo_topic_post(article_parser):
     """Test parsing Infographic / Photo topic post: 9 slides, high-res images, and non-empty captions."""
-    html_file = TEMPLATES_DIR / "container-detail-news_infographic-topic-post.html"
+    html_file = SAMPLES_DIR / "container-detail-news_infographic-topic-post.html"
     assert html_file.exists()
 
     html_content = html_file.read_text(encoding="utf-8")
@@ -104,7 +104,7 @@ def test_parse_infographic_and_photo_topic_post(article_parser):
 
 def test_parse_comments_and_related_articles(article_parser):
     """Test parsing comments and related articles from container-detail-news-comment-similar.html."""
-    html_file = TEMPLATES_DIR / "container-detail-news-comment-similar.html"
+    html_file = SAMPLES_DIR / "container-detail-news-comment-similar.html"
     assert html_file.exists()
 
     html_content = html_file.read_text(encoding="utf-8")

@@ -43,26 +43,38 @@ class ArticlePipeline:
         If recursive=True, also crawl all child subcategories.
         """
         cat_url = urljoin(settings.base_url, "/" + category_slug.strip("/"))
-        page_urls = self.listing_parser.generate_category_page_urls(cat_url, total_pages=max_pages)
 
         total_found = 0
         total_new = 0
+        ajax_info = None
 
-        logger.info("Starting crawl for category '%s' across %d pages", category_slug, len(page_urls))
+        logger.info("Starting crawl for category '%s' up to %d pages", category_slug, max_pages)
 
         with get_db_session() as session:
             repo = Repository(session)
             db_cat = repo.get_category_by_slug(category_slug)
             category_id = db_cat.id if db_cat else None
 
-            for page_idx, page_url in enumerate(page_urls, start=1):
+            for page_idx in range(1, max_pages + 1):
                 if max_articles and total_new >= max_articles:
                     logger.info("Reached maximum requested articles limit: %d", max_articles)
                     break
 
+                if page_idx == 1:
+                    page_url = cat_url
+                elif ajax_info:
+                    page_url = self.listing_parser.build_ajax_page_url(ajax_info, page_idx)
+                else:
+                    page_url = f"{cat_url.rstrip('/')}-p{page_idx}"
+
                 logger.info("Fetching listing page %d/%d: %s", page_idx, max_pages, page_url)
                 try:
                     resp = self.http_client.fetch(page_url)
+                    if page_idx == 1:
+                        ajax_info = self.listing_parser.extract_ajax_paging(resp.text)
+                        if ajax_info:
+                            logger.info("Detected AJAX pagination for category '%s': %s", category_slug, ajax_info)
+
                     listing_items = self.listing_parser.parse_listing(resp.text, category_slug)
                     if not listing_items:
                         logger.info("No articles found on page %d. Stopping pagination.", page_idx)

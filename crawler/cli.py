@@ -145,6 +145,50 @@ def cmd_update_comments(args):
     print(f"\nHoàn tất! Đã cập nhật số lượng bình luận mới cho {updated_count}/{total_articles} bài viết.\n")
 
 
+def cmd_backfill(args):
+    init_db()
+    from crawler.pipeline.article_backfill import ArticleBackfillPipeline
+
+    proxy_url = getattr(args, "proxy", None)
+    pipeline = ArticleBackfillPipeline(proxy_url=proxy_url)
+
+    if args.id:
+        print(f"\n--- BACKFILL BÀI VIẾT ID {args.id} ---")
+        ok = pipeline.backfill_single_article(args.id)
+        if ok:
+            print(f"Cập nhật thành công bài viết [{args.id}].")
+        else:
+            print(f"Thất bại khi cập nhật bài viết [{args.id}].")
+        return
+
+    mode = args.mode
+    limit = args.limit
+    delay = args.delay
+    category_slug = args.category
+    cat_id = None
+    if category_slug:
+        with get_db_session() as session:
+            repo = Repository(session)
+            db_cat = repo.get_category_by_slug(category_slug)
+            if db_cat:
+                cat_id = db_cat.id
+
+    print(f"\n--- BẮT ĐẦU BACKFILL BÀI VIẾT (Mode: {mode}, Limit: {limit}, Delay: {delay}s) ---")
+    if mode == "missing-media":
+        res = pipeline.backfill_missing_media(limit=limit, category_id=cat_id, delay=delay)
+    elif mode == "rich-posts":
+        res = pipeline.backfill_rich_posts(limit=limit, category_id=cat_id, delay=delay)
+    elif mode == "comments":
+        res = pipeline.backfill_comments(limit=limit, category_id=cat_id, delay=delay)
+    elif mode == "all":
+        res = pipeline.backfill_all(limit=limit, delay=delay)
+    else:
+        print(f"Mode không hợp lệ: {mode}")
+        return
+
+    print(f"\nHoàn tất backfill! Tổng: {res['total']}, Đã cập nhật: {res['updated']}, Thất bại: {res['failed']}.\n")
+
+
 def cmd_stats(args):
     init_db()
     with get_db_session() as session:
@@ -225,6 +269,24 @@ def main():
     p_ucmt = subparsers.add_parser("update-comments", parents=[common_parser], help="Đồng bộ số lượng bình luận thời gian thực từ VnExpress")
     p_ucmt.add_argument("--limit", type=int, default=50, help="Số lượng bài viết tối đa cần đồng bộ (mặc định 50)")
     p_ucmt.set_defaults(func=cmd_update_comments)
+
+    # backfill
+    p_backfill = subparsers.add_parser(
+        "backfill",
+        parents=[common_parser],
+        help="Cập nhật ảnh, slideshows, comments và bài liên quan cho bài viết cũ",
+    )
+    p_backfill.add_argument(
+        "--mode",
+        choices=["missing-media", "rich-posts", "comments", "all"],
+        default="missing-media",
+        help="Chế độ quét bài cần cập nhật (mặc định: missing-media)",
+    )
+    p_backfill.add_argument("--limit", type=int, default=50, help="Số lượng bài tối đa cần cập nhật (mặc định 50)")
+    p_backfill.add_argument("--delay", type=float, default=0.5, help="Thời gian chờ giữa các bài viết (giây)")
+    p_backfill.add_argument("--id", type=int, default=None, help="Cập nhật cụ thể một bài viết theo ID")
+    p_backfill.add_argument("--category", default=None, help="Lọc theo slug chuyên mục cụ thể")
+    p_backfill.set_defaults(func=cmd_backfill)
 
     # stats
     p_stats = subparsers.add_parser("stats", parents=[common_parser], help="Xem thống kê tổng quan dữ liệu đã thu thập")

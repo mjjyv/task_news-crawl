@@ -529,19 +529,27 @@ class ArticleParser:
         seen_ids = set()
 
         for c_item in soup.select("#list_comment .comment_item, .comment_item"):
+            c_id = None
             rel_el = c_item.select_one("a.link_reply[rel], a.link_thich[rel], [rel]")
             raw_rel = rel_el.get("rel") if rel_el else None
             if isinstance(raw_rel, list):
                 raw_rel = raw_rel[0] if raw_rel else None
 
-            if not raw_rel or not str(raw_rel).isdigit():
-                continue
-            c_id = int(raw_rel)
-            if c_id in seen_ids:
+            if raw_rel and str(raw_rel).isdigit():
+                c_id = int(raw_rel)
+
+            if not c_id:
+                data_cid = c_item.get("data-comment-id") or c_item.get("data-user-id") or c_item.get("id")
+                if data_cid:
+                    digits = re.sub(r"[^\d]", "", str(data_cid))
+                    if digits:
+                        c_id = int(digits)
+
+            if not c_id or c_id in seen_ids:
                 continue
 
             # Nickname / User Name
-            nick_el = c_item.select_one(".nickname, .txt-name")
+            nick_el = c_item.select_one(".nickname, .txt-name, .full_name")
             user_name = nick_el.get_text(strip=True) if nick_el else "Ẩn danh"
 
             # Avatar
@@ -549,10 +557,10 @@ class ArticleParser:
             avatar_url = avatar_el.get("src") if avatar_el else None
 
             # Content
-            fc = c_item.select_one(".full_content")
+            fc = c_item.select_one(".full_content, .content_more")
             if fc:
                 fc_copy = copy.copy(fc)
-                for unwanted in fc_copy.select(".txt-name, script, style"):
+                for unwanted in fc_copy.select(".txt-name, .full_name, script, style"):
                     unwanted.decompose()
                 content = fc_copy.get_text(strip=True)
             else:

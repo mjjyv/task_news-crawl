@@ -182,31 +182,61 @@ class ListingParser:
     def extract_pagination(self, html: str) -> List[str]:
         """Extract pagination page links found in the HTML."""
         soup = BeautifulSoup(html, "lxml")
-        paging = soup.select_one("div#pagination, div.paging")
-        if not paging:
-            return []
-
+        paging = (
+            soup.select_one("div#pagination")
+            or soup.select_one("div.paging")
+            or soup.select_one("div.pagination")
+            or soup.select_one("ul.pagination")
+            or soup.select_one("nav.pagination")
+        )
         links = []
-        for a in paging.find_all("a", href=True):
-            href = a["href"].strip()
+        if paging:
+            for a in paging.find_all("a", href=True):
+                href = a["href"].strip()
+                if href and not href.startswith("javascript:") and not href.startswith("#"):
+                    links.append(urljoin(self.base_url, href))
+
+        for btn in soup.select("a.btn-page[href], a.pagination__next[href]"):
+            href = btn.get("href", "").strip()
             if href and not href.startswith("javascript:") and not href.startswith("#"):
                 links.append(urljoin(self.base_url, href))
+
         return list(dict.fromkeys(links))
 
     def extract_ajax_paging(self, html: str) -> Optional[Dict[str, Any]]:
-        """Extract AJAX pagination parameters if present (e.g. from div#paging in Góc nhìn)."""
+        """Extract AJAX pagination parameters if present (e.g. from div#paging, [data-container='paging'], [data-url*='ajax'])."""
         soup = BeautifulSoup(html, "lxml")
-        paging = soup.select_one("div#paging[data-url]") or soup.select_one("[data-container='paging']")
+        paging = (
+            soup.select_one("div#paging[data-url]")
+            or soup.select_one("[data-container='paging'][data-url]")
+            or soup.select_one("[data-url*='/ajax/']")
+            or soup.select_one("[data-url]")
+        )
         if paging and paging.get("data-url"):
-            data_page = paging.get("data-page", 2)
-            page_num = int(data_page) if str(data_page).isdigit() else 2
-            return {
-                "url": paging.get("data-url"),
-                "category_id": paging.get("data-category"),
-                "page": page_num,
-                "exclude": paging.get("data-exclude"),
-            }
+            data_url = paging.get("data-url", "").strip()
+            if "/ajax/" in data_url or "ajax" in data_url:
+                data_page = paging.get("data-page", 2)
+                page_num = int(data_page) if str(data_page).isdigit() else 2
+                return {
+                    "url": data_url,
+                    "category_id": paging.get("data-category") or paging.get("data-cate-id") or paging.get("data-cate"),
+                    "page": page_num,
+                    "exclude": paging.get("data-exclude", ""),
+                }
         return None
+
+    def build_ajax_page_url(self, ajax_info: Dict[str, Any], page_num: int) -> str:
+        """Build full AJAX endpoint URL with query parameters for a specific page."""
+        raw_url = ajax_info["url"]
+        full_url = urljoin(self.base_url, raw_url)
+        params = []
+        if ajax_info.get("category_id"):
+            params.append(f"category_id={ajax_info['category_id']}")
+        params.append(f"page={page_num}")
+        if ajax_info.get("exclude"):
+            params.append(f"exclude={ajax_info['exclude']}")
+        sep = "&" if "?" in full_url else "?"
+        return f"{full_url}{sep}{'&'.join(params)}"
 
     @staticmethod
     def generate_category_page_urls(category_url: str, total_pages: int = 20) -> List[str]:

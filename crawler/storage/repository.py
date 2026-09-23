@@ -100,22 +100,33 @@ class Repository:
 
         self.session.flush()
 
-        # Add media if provided
+        # Add or update media if provided
         if media_items:
-            existing_urls = {m.url for m in article.media}
+            existing_media = {m.url: m for m in article.media}
             for m in media_items:
-                if m.get("url") and m["url"] not in existing_urls:
+                url = m.get("url")
+                if not url:
+                    continue
+                if url in existing_media:
+                    med = existing_media[url]
+                    if not med.caption and m.get("caption"):
+                        med.caption = m["caption"]
+                    if not med.width and m.get("width"):
+                        med.width = m["width"]
+                    if not med.height and m.get("height"):
+                        med.height = m["height"]
+                else:
                     media_obj = Media(
                         article=article,
                         type=m.get("type", "image"),
-                        url=m["url"],
+                        url=url,
                         caption=m.get("caption"),
                         width=m.get("width"),
                         height=m.get("height"),
                         local_path=m.get("local_path"),
                     )
                     self.session.add(media_obj)
-                    existing_urls.add(m["url"])
+                    existing_media[url] = media_obj
 
         # Add or upsert comments if provided
         if comments:
@@ -262,3 +273,64 @@ class Repository:
                 for l in latest_logs
             ],
         }
+
+    # ------------------ BACKFILL QUERIES ------------------
+
+    def get_articles_without_media(
+        self, limit: int = 50, offset: int = 0, category_id: Optional[int] = None
+    ) -> List[Article]:
+        """Retrieve articles that have no associated media records."""
+        has_media_subq = select(Media.article_id).distinct()
+        stmt = (
+            select(Article)
+            .where(Article.id.not_in(has_media_subq))
+            .order_by(Article.published_at.desc().nulls_last())
+            .offset(offset)
+            .limit(limit)
+        )
+        if category_id:
+            stmt = stmt.where(Article.category_id == category_id)
+        return list(self.session.execute(stmt).scalars().all())
+
+    def get_articles_missing_rich_metadata(
+        self, limit: int = 50, offset: int = 0, category_id: Optional[int] = None
+    ) -> List[Article]:
+        """Retrieve articles that likely have rich media or lack related articles metadata."""
+        from sqlalchemy import or_
+
+        rich_condition = or_(
+            Article.title.ilike("%ảnh%"),
+            Article.title.ilike("%infographic%"),
+            Article.title.ilike("%video%"),
+            Article.title.ilike("%chùm ảnh%"),
+            Article.origin_url.ilike("%/infographics/%"),
+            Article.origin_url.ilike("%/anh/%"),
+            Article.origin_url.ilike("%photo%"),
+            Article.related_article_ids.is_(None),
+        )
+        stmt = (
+            select(Article)
+            .where(rich_condition)
+            .order_by(Article.published_at.desc().nulls_last())
+            .offset(offset)
+            .limit(limit)
+        )
+        if category_id:
+            stmt = stmt.where(Article.category_id == category_id)
+        return list(self.session.execute(stmt).scalars().all())
+
+    def get_articles_without_comments(
+        self, limit: int = 50, offset: int = 0, category_id: Optional[int] = None
+    ) -> List[Article]:
+        """Retrieve articles that have comment_count > 0 but 0 saved comments."""
+        has_comment_subq = select(Comment.article_id).distinct()
+        stmt = (
+            select(Article)
+            .where(Article.comment_count > 0, Article.id.not_in(has_comment_subq))
+            .order_by(Article.comment_count.desc(), Article.published_at.desc().nulls_last())
+            .offset(offset)
+            .limit(limit)
+        )
+        if category_id:
+            stmt = stmt.where(Article.category_id == category_id)
+        return list(self.session.execute(stmt).scalars().all())
