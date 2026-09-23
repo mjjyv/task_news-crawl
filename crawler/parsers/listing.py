@@ -1,8 +1,9 @@
 """Parser for category listing pages (Page 1 multi-container and Page 2-20)."""
 
+import copy
 import logging
 import re
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
@@ -30,9 +31,9 @@ class ListingParser:
         items: List[ParsedListingItem] = []
         seen_ids = set()
 
-        # Find all article containers
+        # Find all article containers (article, section, or div with item-news/article-item/article-topstory)
         article_tags = soup.find_all(
-            lambda tag: tag.name == "article"
+            lambda tag: tag.name in ("article", "section", "div")
             and (
                 "item-news" in tag.get("class", [])
                 or "article-item" in tag.get("class", [])
@@ -82,11 +83,19 @@ class ListingParser:
 
         if title_tag:
             href = title_tag.get("href", "").strip()
-            title = title_tag.get_text(strip=True)
+            # Clean span.nb-art, icon-cat, badges to prevent title pollution (e.g. 1Sống lại...)
+            t_copy = copy.copy(title_tag)
+            for badge in t_copy.select(".nb-art, .icon-cat, .badge, svg"):
+                badge.decompose()
+            title = t_copy.get_text(strip=True)
 
-        if (not href or not title) and thumb_a:
-            href = href or thumb_a.get("href", "").strip()
-            title = title or thumb_a.get("title", "").strip()
+        if thumb_a:
+            thumb_href = thumb_a.get("href", "").strip()
+            # If thumb links to author profile or tag, ignore it for article href
+            if not href and thumb_href and "/tac-gia/" not in thumb_href and "/tag/" not in thumb_href:
+                href = thumb_href
+            if not title:
+                title = thumb_a.get("title", "").strip()
 
         if not href:
             return None
@@ -183,6 +192,21 @@ class ListingParser:
             if href and not href.startswith("javascript:") and not href.startswith("#"):
                 links.append(urljoin(self.base_url, href))
         return list(dict.fromkeys(links))
+
+    def extract_ajax_paging(self, html: str) -> Optional[Dict[str, Any]]:
+        """Extract AJAX pagination parameters if present (e.g. from div#paging in Góc nhìn)."""
+        soup = BeautifulSoup(html, "lxml")
+        paging = soup.select_one("div#paging[data-url]") or soup.select_one("[data-container='paging']")
+        if paging and paging.get("data-url"):
+            data_page = paging.get("data-page", 2)
+            page_num = int(data_page) if str(data_page).isdigit() else 2
+            return {
+                "url": paging.get("data-url"),
+                "category_id": paging.get("data-category"),
+                "page": page_num,
+                "exclude": paging.get("data-exclude"),
+            }
+        return None
 
     @staticmethod
     def generate_category_page_urls(category_url: str, total_pages: int = 20) -> List[str]:

@@ -4,7 +4,7 @@ import copy
 import logging
 import re
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup, Tag
@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup, Tag
 from crawler.config import settings
 from crawler.parsers.base import (
     ParsedArticle,
+    ParsedComment,
     ParsedMedia,
     extract_article_id,
     extract_slug,
@@ -39,6 +40,16 @@ JUNK_SELECTORS = [
     ".lazier",
     ".box-comment",
     "#box_comment_vne",
+    ".topbar-sticky",
+    ".neo-pin",
+    ".social_pin",
+    ".social-com",
+    ".newsletters",
+    ".box_emoji",
+    ".input_comment",
+    "#comment_reply_wrapper",
+    ".filter_coment",
+    ".action_thumb",
 ]
 
 
@@ -89,28 +100,48 @@ class ArticleParser:
         category_slug = self._extract_category_slug(soup, url)
 
         # 7. Content container: article.fck_detail (or main article body)
-        content_container = soup.select_one("article.fck_detail") or soup.select_one(".content-detail")
-        if not content_container:
-            content_container = soup.select_one(".fck_detail")
+        content_container = (
+            soup.select_one("article.fck_detail")
+            or soup.select_one(".content-detail")
+            or soup.select_one(".fck_detail")
+            or soup.select_one("article")
+            or soup.select_one("main")
+        )
 
         if not content_container:
             logger.warning("No article content container found for %s", url)
             return None
 
-        # 8. Extract Media (Images & Videos) before mutating content_container
+        # 8. Detect post type
+        post_type = "text"
+        if content_container.select(".item_slide_show") or soup.select_one("#lightgallery, .item_slide_show"):
+            if "infographic" in url.lower() or "infographics" in url.lower() or "infographic" in (category_slug or ""):
+                post_type = "infographic"
+            else:
+                post_type = "photo"
+        elif content_container.select("video, [data-video], [data-component-type='video']") and len(content_container.find_all("p")) <= 3:
+            post_type = "video"
+
+        # 9. Extract Related Articles BEFORE mutating content_container / stripping junk
+        related_ids, related_items = self._extract_related_articles(soup, content_container)
+
+        # 10. Extract Media (Images & Videos) before mutating content_container
         media_list = self._extract_media(content_container)
 
-        # 9. Extract Author
+        # 11. Extract Author
         author = self._extract_author(content_container)
 
-        # 10. Clean HTML and text extraction
+        # 12. Clean HTML and text extraction
         clean_html, clean_text = self._clean_content(content_container)
 
-        # 11. Main Thumbnail
+        # 13. Main Thumbnail
         thumbnail_url = self._extract_main_thumbnail(soup, media_list)
 
-        # 12. Comment Count
+        # 14. Comment Count and Comments list
+        comments = self._extract_comments(soup, art_id)
         comment_count = self._extract_comment_count(soup)
+        if len(comments) > comment_count:
+            comment_count = len(comments)
 
         return ParsedArticle(
             id=art_id,
@@ -126,6 +157,10 @@ class ArticleParser:
             published_at=published_at,
             comment_count=comment_count,
             media=media_list,
+            post_type=post_type,
+            related_article_ids=related_ids,
+            related_articles=related_items,
+            comments=comments,
         )
 
     def _extract_publish_date(self, soup: BeautifulSoup) -> Optional[datetime]:
@@ -189,6 +224,51 @@ class ArticleParser:
         import html as html_lib
         media_list: List[ParsedMedia] = []
         seen_urls = set()
+
+        # 0. Extract Slide Show items (Infographics and Photo Stories)
+        for slide in container.select(".item_slide_show"):
+            thumb_box = slide.select_one(".block_thumb_slide_show")
+            img_url = (
+                (thumb_box.get("data-src") or thumb_box.get("data-thumbnail-src"))
+                if thumb_box
+                else None
+            )
+            if not img_url:
+                img_tag = slide.select_one("picture img, img")
+                if img_tag:
+                    img_url = (
+                        img_tag.get("data-desktop-src")
+                        or img_tag.get("data-src")
+                        or img_tag.get("src")
+                    )
+
+            if img_url and not img_url.startswith("data:") and img_url not in seen_urls:
+                seen_urls.add(img_url)
+                # Visible caption: find desc_cation without display:none or height:0
+                caption = None
+                for cap_div in slide.select(".desc_cation"):
+                    style = cap_div.get("style", "")
+                    if "display: none" not in style and "height: 0" not in style:
+                        caption = cap_div.get_text(strip=True)
+                        if caption:
+                            break
+                if not caption:
+                    cap_div = slide.select_one(".desc_cation")
+                    if cap_div:
+                        caption = cap_div.get_text(strip=True)
+
+                width = int(slide["width"]) if slide.has_attr("width") and slide["width"].isdigit() else None
+                height = int(slide["height"]) if slide.has_attr("height") and slide["height"].isdigit() else None
+
+                media_list.append(
+                    ParsedMedia(
+                        type="image",
+                        url=img_url,
+                        caption=caption or None,
+                        width=width,
+                        height=height,
+                    )
+                )
 
         # 1. Extract Gallery items (common in photo stories / albums across all categories)
         for g_item in container.select(".item_gallery_new, .gallery_block .item_gallery"):
@@ -333,9 +413,15 @@ class ArticleParser:
 
         return None
 
-    def _clean_content(self, container: Tag) -> (str, str):
+    def _clean_content(self, container: Tag) -> Tuple[str, str]:
         """Strip junk elements, sanitize images, and return (clean_html, clean_text)."""
         content_copy = copy.copy(container)
+
+        # Decompose hidden desc_cation divs with inline style display:none or height:0
+        for hidden_el in content_copy.find_all(
+            lambda e: e.has_attr("style") and ("display: none" in e["style"] or "height: 0" in e["style"])
+        ):
+            hidden_el.decompose()
 
         # Decompose junk selectors
         for selector in JUNK_SELECTORS:
@@ -393,4 +479,138 @@ class ArticleParser:
                 return int(digits)
 
         return 0
+
+    def _extract_related_articles(
+        self, soup: BeautifulSoup, container: Tag
+    ) -> Tuple[List[int], List[Dict[str, Any]]]:
+        """Extract related article links from within the article body, sidebar, and bottom widgets."""
+        related_ids: List[int] = []
+        related_items: List[Dict[str, Any]] = []
+        seen_ids = set()
+
+        selectors = [
+            ".box-tinlienquan a",
+            ".inner-article a",
+            ".list_video_tin_lien_quan a",
+            "#_detail_cungChuyenMuc .item-news",
+            "#detail_danhchoban .item-news",
+            ".list-news-subfolder .item-news",
+            "#detail_topnew .item-news",
+        ]
+
+        for sel in selectors:
+            for el in soup.select(sel):
+                a_tag = el if el.name == "a" else el.select_one("a.thumb, h4 a, .title-news a, a")
+                if not a_tag:
+                    continue
+                href = a_tag.get("href", "").strip()
+                aid = extract_article_id(href)
+                if not aid or aid in seen_ids:
+                    continue
+
+                title = a_tag.get("title") or a_tag.get_text(strip=True)
+                thumb_el = el.select_one("picture img, img") if el.name != "a" else None
+                thumb_url = thumb_el.get("src") or thumb_el.get("data-src") if thumb_el else None
+
+                seen_ids.add(aid)
+                related_ids.append(aid)
+                related_items.append({
+                    "id": aid,
+                    "title": title,
+                    "url": href,
+                    "thumbnail_url": thumb_url,
+                })
+
+        return related_ids, related_items
+
+    def _extract_comments(self, soup: BeautifulSoup, article_id: Optional[int]) -> List[ParsedComment]:
+        """Extract user comments embedded in detail HTML."""
+        comments: List[ParsedComment] = []
+        seen_ids = set()
+
+        for c_item in soup.select("#list_comment .comment_item, .comment_item"):
+            rel_el = c_item.select_one("a.link_reply[rel], a.link_thich[rel], [rel]")
+            raw_rel = rel_el.get("rel") if rel_el else None
+            if isinstance(raw_rel, list):
+                raw_rel = raw_rel[0] if raw_rel else None
+
+            if not raw_rel or not str(raw_rel).isdigit():
+                continue
+            c_id = int(raw_rel)
+            if c_id in seen_ids:
+                continue
+
+            # Nickname / User Name
+            nick_el = c_item.select_one(".nickname, .txt-name")
+            user_name = nick_el.get_text(strip=True) if nick_el else "Ẩn danh"
+
+            # Avatar
+            avatar_el = c_item.select_one(".img_avatar, .avata_coment img")
+            avatar_url = avatar_el.get("src") if avatar_el else None
+
+            # Content
+            fc = c_item.select_one(".full_content")
+            if fc:
+                fc_copy = copy.copy(fc)
+                for unwanted in fc_copy.select(".txt-name, script, style"):
+                    unwanted.decompose()
+                content = fc_copy.get_text(strip=True)
+            else:
+                content = ""
+
+            if not content:
+                continue
+
+            # Likes
+            likes = 0
+            like_el = (
+                c_item.select_one(".reactions-total a.number")
+                or c_item.select_one(".reactions-total a")
+                or c_item.select_one(".link_thich .number")
+                or c_item.select_one(".total_like")
+            )
+            if like_el:
+                digits = re.sub(r"[^\d]", "", like_el.get_text(strip=True))
+                if digits:
+                    likes = int(digits)
+
+            # Time string
+            time_el = c_item.select_one(".time-com")
+            time_str = time_el.get_text(strip=True) if time_el else None
+
+            # Reply count
+            reply_count = 0
+            rep_el = c_item.select_one(".num_reply_cmt, a.view_all_reply[data-total]")
+            if rep_el:
+                if rep_el.has_attr("data-total") and rep_el["data-total"].isdigit():
+                    reply_count = int(rep_el["data-total"])
+                else:
+                    digits = re.sub(r"[^\d]", "", rep_el.get_text(strip=True))
+                    if digits:
+                        reply_count = int(digits)
+
+            # Parent ID
+            parent_id = None
+            link_reply = c_item.select_one("a.link_reply[parent]")
+            if link_reply and link_reply.get("parent") and link_reply["parent"].isdigit():
+                p_val = int(link_reply["parent"])
+                if p_val != c_id:
+                    parent_id = p_val
+
+            seen_ids.add(c_id)
+            comments.append(
+                ParsedComment(
+                    id=c_id,
+                    article_id=article_id,
+                    user_name=user_name,
+                    user_avatar=avatar_url,
+                    content=content,
+                    likes=likes,
+                    time_str=time_str,
+                    reply_count=reply_count,
+                    parent_id=parent_id,
+                )
+            )
+
+        return comments
 

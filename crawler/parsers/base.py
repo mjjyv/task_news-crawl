@@ -35,6 +35,18 @@ class ParsedMedia(BaseModel):
     height: Optional[int] = None
 
 
+class ParsedComment(BaseModel):
+    id: int
+    article_id: Optional[int] = None
+    user_name: str
+    user_avatar: Optional[str] = None
+    content: str
+    likes: int = 0
+    time_str: Optional[str] = None
+    reply_count: int = 0
+    parent_id: Optional[int] = None
+
+
 class ParsedArticle(BaseModel):
     id: int
     title: str
@@ -49,6 +61,10 @@ class ParsedArticle(BaseModel):
     published_at: Optional[datetime] = None
     comment_count: int = 0
     media: List[ParsedMedia] = Field(default_factory=list)
+    post_type: str = "text"  # 'text', 'infographic', 'photo', 'video'
+    related_article_ids: List[int] = Field(default_factory=list)
+    related_articles: List[Dict[str, Any]] = Field(default_factory=list)
+    comments: List[ParsedComment] = Field(default_factory=list)
 
 
 class ParsedRSSItem(BaseModel):
