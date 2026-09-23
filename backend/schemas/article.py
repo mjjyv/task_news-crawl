@@ -24,6 +24,21 @@ class MediaResponse(BaseModel):
     height: Optional[int] = None
 
 
+class CommentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    article_id: Optional[int] = None
+    user_name: str
+    user_avatar: Optional[str] = None
+    content: str
+    likes: int = 0
+    time_str: Optional[str] = None
+    reply_count: int = 0
+    parent_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+
 class ArticleSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,6 +51,7 @@ class ArticleSummary(BaseModel):
     origin_url: str
     published_at: Optional[datetime] = None
     comment_count: int = 0
+    post_type: str = "text"
     category: Optional[CategoryShort] = None
 
 
@@ -53,7 +69,10 @@ class ArticleDetail(BaseModel):
     origin_url: str
     published_at: Optional[datetime] = None
     comment_count: int = 0
+    post_type: str = "text"
     created_at: Optional[datetime] = None
     category: Optional[CategoryShort] = None
     media: List[MediaResponse] = Field(default_factory=list)
+    related_article_ids: List[int] = Field(default_factory=list)
     related_articles: List[ArticleSummary] = Field(default_factory=list)
+    comments: List[CommentResponse] = Field(default_factory=list)

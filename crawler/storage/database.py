@@ -52,11 +52,32 @@ def get_engine(db_url: Optional[str] = None) -> Engine:
     return _engine
 
 
+def migrate_db(eng: Engine) -> None:
+    """Safely apply backward-compatible schema migrations (e.g. new columns in SQLite)."""
+    from sqlalchemy import text
+
+    with eng.connect() as conn:
+        try:
+            result = conn.execute(text("PRAGMA table_info(articles)")).fetchall()
+            if result:
+                existing_cols = {row[1] for row in result}  # row[1] is column name in PRAGMA table_info
+                if "post_type" not in existing_cols:
+                    logger.info("Migrating DB: Adding 'post_type' column to articles table")
+                    conn.execute(text("ALTER TABLE articles ADD COLUMN post_type VARCHAR(20) DEFAULT 'text'"))
+                if "related_article_ids" not in existing_cols:
+                    logger.info("Migrating DB: Adding 'related_article_ids' column to articles table")
+                    conn.execute(text("ALTER TABLE articles ADD COLUMN related_article_ids TEXT"))
+                conn.commit()
+        except Exception as exc:
+            logger.warning("Could not auto-migrate table columns: %s", exc)
+
+
 def init_db(engine: Optional[Engine] = None) -> None:
-    """Initialize database tables according to the models."""
+    """Initialize database tables according to the models and run auto-migration."""
     eng = engine or get_engine()
     Base.metadata.create_all(bind=eng)
-    logger.info("Database tables initialized successfully.")
+    migrate_db(eng)
+    logger.info("Database tables initialized and migrated successfully.")
 
 
 @contextmanager

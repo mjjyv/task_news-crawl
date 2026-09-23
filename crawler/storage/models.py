@@ -52,11 +52,16 @@ class Article(Base):
     )
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     comment_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
+    post_type: Mapped[str] = mapped_column(String(20), default="text", nullable=False)
+    related_article_ids: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     category: Mapped[Optional["Category"]] = relationship("Category", back_populates="articles")
     media: Mapped[List["Media"]] = relationship(
         "Media", back_populates="article", cascade="all, delete-orphan"
+    )
+    comments: Mapped[List["Comment"]] = relationship(
+        "Comment", back_populates="article", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -66,6 +71,28 @@ class Article(Base):
 
     def __repr__(self) -> str:
         return f"<Article(id={self.id}, title='{self.title[:30]}...')>"
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)  # VnExpress comment ID
+    article_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("articles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_avatar: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    likes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    time_str: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    reply_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    parent_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    article: Mapped["Article"] = relationship("Article", back_populates="comments")
+
+    def __repr__(self) -> str:
+        return f"<Comment(id={self.id}, article_id={self.article_id}, user='{self.user_name}')>"
 
 
 class Media(Base):

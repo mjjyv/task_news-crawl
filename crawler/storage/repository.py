@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from crawler.storage.models import Article, Category, CrawlLog, Media
+from crawler.storage.models import Article, Category, Comment, CrawlLog, Media
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +76,20 @@ class Repository:
         self,
         article_data: Dict[str, Any],
         media_items: Optional[List[Dict[str, Any]]] = None,
+        comments: Optional[List[Dict[str, Any]]] = None,
     ) -> Article:
-        """Create or update article by ID."""
+        """Create or update article by ID, including media and comments."""
+        import json
+
         art_id = article_data["id"]
         stmt = select(Article).where(Article.id == art_id)
         article = self.session.execute(stmt).scalar_one_or_none()
+
+        # Serialize related_article_ids if list/set
+        if "related_article_ids" in article_data and isinstance(
+            article_data["related_article_ids"], (list, set)
+        ):
+            article_data["related_article_ids"] = json.dumps(list(article_data["related_article_ids"]))
 
         if article:
             for key, val in article_data.items():
@@ -108,8 +117,78 @@ class Repository:
                     self.session.add(media_obj)
                     existing_urls.add(m["url"])
 
+        # Add or upsert comments if provided
+        if comments:
+            existing_cids = {c.id for c in article.comments}
+            for c in comments:
+                cid = c.get("id")
+                if not cid:
+                    continue
+                if cid in existing_cids:
+                    cmt = next((item for item in article.comments if item.id == cid), None)
+                    if cmt:
+                        cmt.likes = c.get("likes", cmt.likes)
+                        cmt.reply_count = c.get("reply_count", cmt.reply_count)
+                else:
+                    cmt_obj = Comment(
+                        id=cid,
+                        article=article,
+                        user_name=c.get("user_name", "Ẩn danh"),
+                        user_avatar=c.get("user_avatar"),
+                        content=c.get("content", ""),
+                        likes=c.get("likes", 0),
+                        time_str=c.get("time_str"),
+                        reply_count=c.get("reply_count", 0),
+                        parent_id=c.get("parent_id"),
+                    )
+                    self.session.add(cmt_obj)
+                    existing_cids.add(cid)
+
         self.session.flush()
         return article
+
+    def get_comments_by_article(self, article_id: int) -> List[Comment]:
+        """Fetch comments for a given article, ordered by likes DESC, created_at DESC."""
+        stmt = (
+            select(Comment)
+            .where(Comment.article_id == article_id)
+            .order_by(Comment.likes.desc(), Comment.created_at.desc())
+        )
+        return list(self.session.execute(stmt).scalars().all())
+
+    def save_comments(self, article_id: int, comments: List[Dict[str, Any]]) -> int:
+        """Upsert comments for an article."""
+        article = self.session.get(Article, article_id)
+        if not article:
+            return 0
+        existing_cids = {c.id for c in article.comments}
+        added_count = 0
+        for c in comments:
+            cid = c.get("id")
+            if not cid:
+                continue
+            if cid in existing_cids:
+                cmt = next((item for item in article.comments if item.id == cid), None)
+                if cmt:
+                    cmt.likes = c.get("likes", cmt.likes)
+                    cmt.reply_count = c.get("reply_count", cmt.reply_count)
+            else:
+                cmt_obj = Comment(
+                    id=cid,
+                    article=article,
+                    user_name=c.get("user_name", "Ẩn danh"),
+                    user_avatar=c.get("user_avatar"),
+                    content=c.get("content", ""),
+                    likes=c.get("likes", 0),
+                    time_str=c.get("time_str"),
+                    reply_count=c.get("reply_count", 0),
+                    parent_id=c.get("parent_id"),
+                )
+                self.session.add(cmt_obj)
+                existing_cids.add(cid)
+                added_count += 1
+        self.session.flush()
+        return added_count
 
     def get_article_by_id(self, art_id: int) -> Optional[Article]:
         return self.session.get(Article, art_id)
@@ -161,6 +240,7 @@ class Repository:
         cat_count = self.session.execute(select(func.count(Category.id))).scalar() or 0
         art_count = self.session.execute(select(func.count(Article.id))).scalar() or 0
         media_count = self.session.execute(select(func.count(Media.id))).scalar() or 0
+        comment_count = self.session.execute(select(func.count(Comment.id))).scalar() or 0
         latest_logs = self.session.execute(
             select(CrawlLog).order_by(CrawlLog.executed_at.desc()).limit(5)
         ).scalars().all()
@@ -169,6 +249,7 @@ class Repository:
             "total_categories": cat_count,
             "total_articles": art_count,
             "total_media": media_count,
+            "total_comments": comment_count,
             "latest_logs": [
                 {
                     "type": l.crawler_type,

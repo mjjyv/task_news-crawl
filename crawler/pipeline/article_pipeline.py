@@ -261,9 +261,12 @@ class ArticlePipeline:
                     "category_id": cat_id,
                     "published_at": parsed.published_at,
                     "comment_count": parsed.comment_count,
+                    "post_type": parsed.post_type,
+                    "related_article_ids": parsed.related_article_ids,
                 }
                 media_dicts = [m.model_dump() for m in parsed.media]
-                repo.upsert_article(art_dict, media_dicts)
+                comment_dicts = [c.model_dump() for c in parsed.comments]
+                repo.upsert_article(art_dict, media_dicts, comment_dicts)
                 self.deduplicator.mark_seen(parsed.id)
                 return parsed
             except Exception as exc:
@@ -316,10 +319,13 @@ class ArticlePipeline:
                 "category_id": category_id,
                 "published_at": parsed.published_at,
                 "comment_count": final_comment_count or 0,
+                "post_type": parsed.post_type,
+                "related_article_ids": parsed.related_article_ids,
             }
             media_items = [m.model_dump() for m in parsed.media]
+            comment_items = [c.model_dump() for c in parsed.comments]
 
-            repo.upsert_article(article_data, media_items)
+            repo.upsert_article(article_data, media_items, comment_items)
             logger.info("Successfully ingested article [%d]: %s (comments: %d)", parsed.id, parsed.title[:50], final_comment_count or 0)
             return True
         except Exception as exc:

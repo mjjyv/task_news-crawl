@@ -10,6 +10,7 @@ from backend.schemas.article import (
     ArticleDetail,
     ArticleSummary,
     CategoryShort,
+    CommentResponse,
     MediaResponse,
 )
 from backend.schemas.common import PaginatedResponse
@@ -102,6 +103,7 @@ class ArticleService:
                 origin_url=a.origin_url,
                 published_at=a.published_at,
                 comment_count=a.comment_count,
+                post_type=getattr(a, "post_type", "text") or "text",
                 category=CategoryShort.model_validate(a.category) if a.category else None,
             )
             for a in articles
@@ -116,12 +118,15 @@ class ArticleService:
         )
 
     def get_article_detail(self, article_id: int) -> Optional[ArticleDetail]:
-        """Fetch article detail with media and related articles."""
+        """Fetch article detail with media, comments, and related articles."""
+        import json
+
         stmt = (
             select(Article)
             .options(
                 selectinload(Article.category),
                 selectinload(Article.media),
+                selectinload(Article.comments),
             )
             .where(Article.id == article_id)
         )
@@ -129,37 +134,86 @@ class ArticleService:
         if not article:
             return None
 
-        # Related articles (up to 5 in same category, excluding current)
+        # Parse saved related article IDs
+        rel_ids: List[int] = []
+        if getattr(article, "related_article_ids", None):
+            try:
+                parsed_ids = json.loads(article.related_article_ids)
+                if isinstance(parsed_ids, list):
+                    rel_ids = [int(x) for x in parsed_ids if str(x).isdigit()]
+            except Exception:
+                rel_ids = []
+
+        # Related articles: first attempt to load articles matching rel_ids from DB
         related_items: List[ArticleSummary] = []
-        if article.category_id:
+        loaded_ids = set()
+        if rel_ids:
             rel_stmt = (
+                select(Article)
+                .options(selectinload(Article.category))
+                .where(Article.id.in_(rel_ids), Article.id != article.id)
+                .limit(10)
+            )
+            rel_matches = self.session.execute(rel_stmt).scalars().all()
+            for r in rel_matches:
+                loaded_ids.add(r.id)
+                related_items.append(
+                    ArticleSummary(
+                        id=r.id,
+                        title=r.title,
+                        slug=r.slug,
+                        description=r.description,
+                        thumbnail_url=r.thumbnail_url,
+                        author=r.author,
+                        origin_url=r.origin_url,
+                        published_at=r.published_at,
+                        comment_count=r.comment_count,
+                        post_type=getattr(r, "post_type", "text") or "text",
+                        category=CategoryShort.model_validate(r.category) if r.category else None,
+                    )
+                )
+
+        # Fallback to fill up to 5 articles from same category if fewer found
+        if len(related_items) < 5 and article.category_id:
+            fallback_limit = 5 - len(related_items)
+            exclude_ids = {article.id} | loaded_ids
+            fb_stmt = (
                 select(Article)
                 .options(selectinload(Article.category))
                 .where(
                     Article.category_id == article.category_id,
-                    Article.id != article.id,
+                    Article.id.not_in(exclude_ids),
                 )
                 .order_by(Article.published_at.desc().nulls_last())
-                .limit(5)
+                .limit(fallback_limit)
             )
-            related_articles = self.session.execute(rel_stmt).scalars().all()
-            related_items = [
-                ArticleSummary(
-                    id=r.id,
-                    title=r.title,
-                    slug=r.slug,
-                    description=r.description,
-                    thumbnail_url=r.thumbnail_url,
-                    author=r.author,
-                    origin_url=r.origin_url,
-                    published_at=r.published_at,
-                    comment_count=r.comment_count,
-                    category=CategoryShort.model_validate(r.category) if r.category else None,
+            fb_articles = self.session.execute(fb_stmt).scalars().all()
+            for r in fb_articles:
+                related_items.append(
+                    ArticleSummary(
+                        id=r.id,
+                        title=r.title,
+                        slug=r.slug,
+                        description=r.description,
+                        thumbnail_url=r.thumbnail_url,
+                        author=r.author,
+                        origin_url=r.origin_url,
+                        published_at=r.published_at,
+                        comment_count=r.comment_count,
+                        post_type=getattr(r, "post_type", "text") or "text",
+                        category=CategoryShort.model_validate(r.category) if r.category else None,
+                    )
                 )
-                for r in related_articles
-            ]
 
         media_dtos = [MediaResponse.model_validate(m) for m in article.media]
+
+        # Sort comments by likes DESC, then created_at DESC
+        sorted_comments = sorted(
+            article.comments,
+            key=lambda c: (c.likes, c.created_at.timestamp() if c.created_at else 0),
+            reverse=True,
+        )
+        comment_dtos = [CommentResponse.model_validate(c) for c in sorted_comments]
 
         return ArticleDetail(
             id=article.id,
@@ -173,8 +227,11 @@ class ArticleService:
             origin_url=article.origin_url,
             published_at=article.published_at,
             comment_count=article.comment_count,
+            post_type=getattr(article, "post_type", "text") or "text",
             created_at=article.created_at,
             category=CategoryShort.model_validate(article.category) if article.category else None,
             media=media_dtos,
+            related_article_ids=rel_ids,
             related_articles=related_items,
+            comments=comment_dtos,
         )
